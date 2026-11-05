@@ -89,3 +89,9 @@ h1, h2, h3 { font-family: var(--font-serif), Georgia, serif; }
 .review-q .flag-note { display: none; }
 .review-q:has(.flag:checked) .flag-note { display: block; }
 .review-q:has(.flag:checked) { background: var(--warn-bg); margin: 0 -1.25rem; padding-left: 1.25rem; padding-right: 1.25rem; }
+
+/* Phones: 16px text in form boxes (smaller makes iPhones zoom in on every tap), and room for the iPhone notch/home bar. */
+@media (max-width: 640px) {
+  input:not([type=radio]):not([type=checkbox]), select, textarea { font-size: 16px !important; }
+}
+body { padding-bottom: env(safe-area-inset-bottom); }

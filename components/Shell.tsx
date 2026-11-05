@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { logout } from "@/app/login/actions";
 import { Letterhead, Motto } from "@/components/Letterhead";
+import { InstallApp } from "@/components/InstallApp";
 import { NavTabs } from "@/components/NavTabs";
 import { ROLE_LABEL, type Session } from "@/lib/auth";
 
@@ -25,7 +26,7 @@ export function Shell({ session, children, toReview = 0 }: { session: Session; c
         <div className="rule mt-4" />
         {links.length > 1 && <NavTabs links={links} />}
       </header>
-      <main>{children}</main>
+      <main><InstallApp />{children}</main>
       <Motto />
     </div>
   );
