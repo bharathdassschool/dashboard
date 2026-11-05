@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ActionForm, ButtonForm, Submit } from "@/components/forms";
 import { DecisionBadge } from "@/components/PaperBadges";
 import { PaperSheet } from "@/components/PaperSheet";
-import { Card, Stat } from "@/components/ui";
+import { Card, Stat, Stats } from "@/components/ui";
 import {
   getQuestionReviews, getReviewers, getStaffAccounts, REASON_LABEL, type Paper, type Question,
 } from "@/lib/papers";
@@ -25,13 +25,15 @@ export async function ManagerReview({ paper, questions }: { paper: Paper; questi
   const open = paper.status === "in_review";
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <Stat label="Reviews in" value={`${done.length} of ${reviewers.length}`} />
-        <Stat label="Approved" value={count("approved")} tone={count("approved") ? "good" : undefined} />
-        <Stat label="Approved with changes" value={count("approved_with_changes")} tone={count("approved_with_changes") ? "warn" : undefined} />
-        <Stat label="Disapproved" value={count("disapproved")} tone={count("disapproved") ? "bad" : undefined} />
-        <Stat label="Questions flagged" value={`${flagged} of ${questions.length}`} tone={flagged ? "warn" : undefined} />
-      </div>
+      <Card>
+        <Stats>
+          <Stat label="Reviews in" value={`${done.length}/${reviewers.length}`} />
+          <Stat label="Approved" value={count("approved")} tone={count("approved") ? "good" : undefined} />
+          <Stat label="With changes" value={count("approved_with_changes")} tone={count("approved_with_changes") ? "warn" : undefined} />
+          <Stat label="Disapproved" value={count("disapproved")} tone={count("disapproved") ? "bad" : undefined} />
+          <Stat label="Questions flagged" value={`${flagged}/${questions.length}`} tone={flagged ? "warn" : undefined} />
+        </Stats>
+      </Card>
 
       <Card title="Reviewers">
         <div className="table-wrap">
@@ -96,17 +98,17 @@ export async function ManagerReview({ paper, questions }: { paper: Paper; questi
         {open ? (
           <div className="flex flex-col gap-4 text-sm">
             <div className="flex flex-wrap items-center gap-3">
-              <ButtonForm action={closePaper} fields={{ id: paper.id, outcome: "final" }} label="✓ Mark final – ready to print" className="btn-primary"
+              <ButtonForm action={closePaper} fields={{ id: paper.id, outcome: "final" }} label="Mark final" className="btn-primary"
                 confirm={done.length < reviewers.length ? "Not everyone has submitted their review yet. Mark final anyway?" : undefined} />
-              <span className="text-muted">Admin sees it as final and prints it.</span>
+              <span className="text-muted">Admin can print it.</span>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <ButtonForm action={makeRevision} fields={{ id: paper.id }} label="✎ Make a revised version" className="btn"
+              <ButtonForm action={makeRevision} fields={{ id: paper.id }} label="Make a revised version" className="btn"
                 confirm="Start version 2 as a draft with the same questions to edit? This version will be closed." />
-              <span className="text-muted">Copies the questions into a new draft so you can apply the changes (or paste Claude&apos;s corrected paper) and send it again.</span>
+              <span className="text-muted">Copies the questions into a new draft to fix, then send again to the same teachers.</span>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <ButtonForm action={closePaper} fields={{ id: paper.id, outcome: "rejected" }} label="✗ Reject this paper" confirm="Reject this paper?" />
+              <ButtonForm action={closePaper} fields={{ id: paper.id, outcome: "rejected" }} label="Reject" confirm="Reject this paper?" />
             </div>
           </div>
         ) : (

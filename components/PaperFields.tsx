@@ -2,16 +2,16 @@ import { Field } from "@/components/ui";
 import { CLASSES, EXAMS, type Paper } from "@/lib/papers";
 
 /** Class, subject, exam and the paper's printed heading – used when uploading and when editing. */
-export function PaperFields({ p }: { p?: Partial<Paper> }) {
+export function PaperFields({ p, optional = false }: { p?: Partial<Paper>; optional?: boolean }) {
   return (
     <>
       <Field label="Class">
-        <select name="class_code" required defaultValue={p?.class_code ?? ""}>
-          <option value="" disabled>Choose…</option>
+        <select name="class_code" required={!optional} defaultValue={p?.class_code ?? ""}>
+          <option value="" disabled={!optional}>{optional ? "From the paper" : "Choose…"}</option>
           {CLASSES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
       </Field>
-      <Field label="Subject"><input name="subject" required defaultValue={p?.subject} placeholder="Science" /></Field>
+      <Field label="Subject"><input name="subject" required={!optional} defaultValue={p?.subject} placeholder={optional ? "From the paper" : "Science"} /></Field>
       <Field label="Exam">
         <input name="exam" list="exam-list" defaultValue={p?.exam} placeholder="Quarterly" />
       </Field>

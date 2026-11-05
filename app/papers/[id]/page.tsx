@@ -13,7 +13,7 @@ import { StaffReview } from "./StaffReview";
 
 export const dynamic = "force-dynamic";
 
-export default async function PaperPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ new?: string; revision?: string }> }) {
+export default async function PaperPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ new?: string; revision?: string; sent?: string; nosend?: string }> }) {
   const session = await requireSession();
   if (!databaseUrl()) return <Shell session={session}><DbMissing /></Shell>;
   const pid = Number((await params).id);
@@ -38,9 +38,11 @@ export default async function PaperPage({ params, searchParams }: { params: Prom
       : [];
     return (
       <Shell session={session}>
-        {header(<>Class {paper.class_code} · {paper.subject}{paper.exam && ` · ${paper.exam}`} {older}</>, fileLink)}
-        {sp.new && <p className="card mb-6 text-sm">Uploaded. <strong>{questions.length} questions</strong> were read – check them below, then send the paper for review.</p>}
-        {sp.revision && <p className="card mb-6 text-sm">Version {paper.version} started as a draft with the same questions. Make the changes, then send it again.</p>}
+        {header(<>{paper.academic_year} {older}</>, fileLink)}
+        {sp.sent && <p className="mb-6 text-sm text-good">Uploaded and sent – {questions.length} questions.</p>}
+        {sp.new && <p className="mb-6 text-sm">{questions.length} questions read. Check them, then send.</p>}
+        {sp.nosend && <p className="mb-6 text-sm text-warn">{questions.length ? "No teacher's subject and class match this paper yet – tick the reviewers below." : "No numbered questions were found – check the paper below."}</p>}
+        {sp.revision && <p className="mb-6 text-sm">Version {paper.version} – same questions, ready to change and send again.</p>}
         {paper.status === "draft"
           ? <ManagerDraft paper={paper} questions={questions} previousReviewers={previousReviewers} />
           : <ManagerReview paper={paper} questions={questions} />}
@@ -52,8 +54,8 @@ export default async function PaperPage({ params, searchParams }: { params: Prom
     if (paper.status === "draft") notFound();
     return (
       <Shell session={session}>
-        {header(<>Class {paper.class_code} · {paper.subject}{paper.exam && ` · ${paper.exam}`}</>, <>{fileLink}<Link className="btn-primary" href={`/papers/${pid}/print`}>Print</Link></>)}
-        {paper.outcome !== "final" && <p className="card mb-6 text-sm text-warn">This paper is not final yet – print it only when it shows “Final – ready to print”.</p>}
+        {header(<>{paper.academic_year}</>, <>{fileLink}<Link className="btn-primary" href={`/papers/${pid}/print`}>Print</Link></>)}
+        {paper.outcome !== "final" && <p className="mb-6 text-sm text-warn">Not final yet.</p>}
         <Card><PaperSheet paper={paper} questions={questions} /></Card>
       </Shell>
     );
@@ -64,7 +66,7 @@ export default async function PaperPage({ params, searchParams }: { params: Prom
   if (!me || paper.status === "draft") notFound();
   return (
     <Shell session={session} toReview={await countToReview(session.staffId!)}>
-      {header(<>Class {paper.class_code} · {paper.subject}{paper.exam && ` · ${paper.exam}`}{paper.max_marks && ` · ${paper.max_marks} marks`}</>, fileLink)}
+      {header(<>{paper.max_marks && `${paper.max_marks} marks`}{paper.duration && ` · ${paper.duration}`}</>, fileLink)}
       <StaffReview paper={paper} questions={questions} me={me} />
     </Shell>
   );

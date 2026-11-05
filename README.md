@@ -1,6 +1,6 @@
 # Bharath Dass School – School portal
 
-One web address for all the school systems, with a different home page for each role:
+One web address for all the school systems, on the school's letterhead, with a different home page for each role:
 
 | Login | Sees |
 | --- | --- |
@@ -15,20 +15,20 @@ the right role, and the Manager's figures are read live from each app. **Questio
 
 ## Question papers
 
-1. **Manager → Question papers → Upload a paper**: choose class, subject and exam, then paste the paper Claude wrote
-   (or upload its Word file; a PDF or photo is kept for viewing and printing, but paste its text too). Each question is
-   read out by its number (`1.`, `2)`, `Q3` …), with *Section A/B* headings and marks like `[2]` or `(2 marks)`.
-2. Check the questions on the next page – edit, delete, move or add – then tick the reviewers and **Send to reviewers**.
-   Teachers whose subjects (and classes) on *Staff logins* match the paper are ticked automatically.
-3. **Each teacher** signs in with their own login, opens the paper and marks every question **OK** or **Needs change**
-   (writing what to change), then gives a final decision: **Approved**, **Approved with changes**, or **Disapproved**
-   with a reason – *too many changes to go ahead* or *something fundamentally wrong* – and a comment. They can save and
-   finish later; once submitted only the Manager can reopen it.
-4. **Manager** sees every decision and every note under each question, then: **Mark final – ready to print**,
-   **Make a revised version** (copies the questions into version 2 to fix – or paste Claude's corrected paper – and
-   send again to the same teachers), or **Reject**.
-5. **Admin** sees every paper that has been sent out and prints it (Print / Save as PDF, or the original file). Papers
-   that aren't final carry a warning.
+1. **Manager → Upload a paper**: paste what Claude wrote (or upload its Word file). Class, subject, exam, year, marks,
+   time and general instructions are read from the paper's heading; each question is read by its number (`1.`, `2)`,
+   `Q3` …) with *Section / Part* headings and marks like `[2]` or `(2 marks)`.
+   - **Upload & send to teachers** sends it straight to the teachers whose subject and class match (Staff page;
+     short forms like *Maths* = *Mathematics* are understood).
+   - **Upload & check first** opens the questions to edit before sending.
+2. **Teachers** sign in with their own login. Every question counts as OK; they tick **Needs change** only where
+   something should change and say what, then press **Approve** (sent as *Approved with changes* if anything is
+   flagged) or **Disapprove** with a reason – *too many changes to go ahead* or *something fundamentally wrong* – and a
+   comment. *Save for later* keeps their work; once sent only the Manager can reopen it.
+3. **Manager** sees every decision and every note under each question (the home page lists papers with all reviews
+   in), then **Mark final**, **Make a revised version** (same questions as version 2, sent again to the same
+   teachers), or **Reject**.
+4. **Admin** sees every paper that has been sent out and prints it on the school letterhead (or opens the original file).
 
 Inside the office and leave apps the portal shows up as two users on **Admin → Users**: `portal-manager` (admin) and `portal-admin`
 (editor, data entry only). Every entry made through the portal is recorded as *Manager* or *Admin (office)*.

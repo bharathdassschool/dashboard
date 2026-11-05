@@ -2,9 +2,9 @@ import Link from "next/link";
 
 export function PageHeader({ title, subtitle, actions }: { title: React.ReactNode; subtitle?: React.ReactNode; actions?: React.ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+    <div className="mb-8 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="text-3xl font-semibold" style={{ color: "var(--primary)" }}>{title}</h1>
         {subtitle && <div className="mt-1 text-sm text-muted">{subtitle}</div>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
@@ -16,8 +16,8 @@ export function Card({ title, children, className = "", actions }: { title?: Rea
   return (
     <section className={`card ${className}`}>
       {(title || actions) && (
-        <div className="mb-3 flex items-center justify-between gap-2">
-          {title && <h2 className="text-base font-semibold">{title}</h2>}
+        <div className="mb-4 flex items-center justify-between gap-2">
+          {title && <h2 className="eyebrow" style={{ fontFamily: "inherit" }}>{title}</h2>}
           {actions}
         </div>
       )}
@@ -26,15 +26,21 @@ export function Card({ title, children, className = "", actions }: { title?: Rea
   );
 }
 
+/** One figure: small label, large number. Put several in <Stats>. */
 export function Stat({ label, value, tone, hint }: { label: string; value: React.ReactNode; tone?: "good" | "bad" | "warn"; hint?: React.ReactNode }) {
   const color = tone === "good" ? "text-good" : tone === "bad" ? "text-bad" : tone === "warn" ? "text-warn" : "";
   return (
-    <div className="card">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold tabular-nums ${color}`}>{value}</div>
-      {hint && <div className="mt-1 text-xs text-muted">{hint}</div>}
+    <div className="min-w-0 py-1 sm:px-5 sm:first:pl-0">
+      <div className="eyebrow">{label}</div>
+      <div className={`serif mt-1 text-3xl font-semibold tabular-nums ${color}`}>{value}</div>
+      {hint && <div className="mt-0.5 text-xs text-muted">{hint}</div>}
     </div>
   );
+}
+
+/** A row of figures separated by thin lines. */
+export function Stats({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <div className={`grid grid-cols-2 gap-y-4 sm:flex sm:flex-wrap sm:divide-x sm:divide-[var(--border)] ${className}`}>{children}</div>;
 }
 
 export function StatusBadge({ status }: { status: string }) {

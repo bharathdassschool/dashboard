@@ -1,37 +1,40 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #f6f7f9;
+  /* Taken from the school letterhead: maroon crest and heading, gold rule. */
+  --bg: #faf8f4;
   --surface: #ffffff;
-  --border: #e3e6eb;
-  --text: #1b1f24;
-  --muted: #5f6b7a;
-  --primary: #1d4ed8;
+  --border: #ebe5da;
+  --text: #22201c;
+  --muted: #6f685d;
+  --primary: #7a1d21;
   --primary-fg: #ffffff;
-  --good: #15803d;
-  --bad: #b91c1c;
-  --warn: #b45309;
-  --good-bg: #dcfce7;
-  --warn-bg: #fef3c7;
-  --bad-bg: #fee2e2;
-  --muted-bg: #eef0f3;
+  --gold: #b08a3e;
+  --good: #2f7a3a;
+  --bad: #a32020;
+  --warn: #9a6212;
+  --good-bg: #e6f2e6;
+  --warn-bg: #fbf0dc;
+  --bad-bg: #f8e3e1;
+  --muted-bg: #f3efe7;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0f1216;
-    --surface: #171b21;
-    --border: #2a313a;
-    --text: #e7eaee;
-    --muted: #96a1ae;
-    --primary: #5b8def;
-    --primary-fg: #0b0e12;
-    --good: #4ade80;
-    --bad: #f87171;
-    --warn: #fbbf24;
-    --good-bg: #12301d;
-    --warn-bg: #36290b;
-    --bad-bg: #3b1515;
-    --muted-bg: #222830;
+    --bg: #15120f;
+    --surface: #1d1915;
+    --border: #332c24;
+    --text: #ece6dc;
+    --muted: #a59b8c;
+    --primary: #e0898b;
+    --primary-fg: #1a0b0c;
+    --gold: #cfa95a;
+    --good: #7fcf8a;
+    --bad: #f08a80;
+    --warn: #e7b55c;
+    --good-bg: #1b2e1e;
+    --warn-bg: #33270f;
+    --bad-bg: #3a1a18;
+    --muted-bg: #26211b;
   }
 }
 
@@ -43,22 +46,28 @@
   --color-primary: var(--primary);
 }
 
-body { background: var(--bg); color: var(--text); }
+body { background: var(--bg); color: var(--text); font-family: var(--font-sans), system-ui, sans-serif; }
+.serif { font-family: var(--font-serif), Georgia, serif; }
+h1, h2, h3 { font-family: var(--font-serif), Georgia, serif; }
 
 @layer components {
-  .card { @apply rounded-xl border p-4; background: var(--surface); border-color: var(--border); }
-  .btn-primary { @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-60; background: var(--primary); color: var(--primary-fg); }
-  .btn { @apply inline-flex items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium; border-color: var(--border); background: var(--surface); }
+  .card { @apply rounded-lg border p-5; background: var(--surface); border-color: var(--border); }
+  .rule { height: 4px; border-top: 2px solid var(--primary); border-bottom: 1px solid var(--gold); }
+  .eyebrow { @apply text-[0.7rem] font-medium uppercase tracking-[0.14em]; color: var(--muted); }
+  .btn-primary { @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60; background: var(--primary); color: var(--primary-fg); }
+  .btn { @apply inline-flex items-center justify-center rounded-md border px-3 py-2 text-sm font-medium; border-color: var(--border); background: var(--surface); }
   .btn:hover { background: var(--muted-bg); }
   .btn-link { @apply text-sm font-medium underline-offset-2 hover:underline; color: var(--primary); }
   .btn-link-danger { @apply text-sm font-medium underline-offset-2 hover:underline; color: var(--bad); }
   .field { @apply flex flex-col gap-1 text-sm; }
   .field > span { @apply font-medium; color: var(--muted); }
   .input, .field input, .field select, .field textarea {
-    @apply w-full rounded-lg border px-3 py-2 text-sm outline-none;
+    @apply w-full rounded-md border px-3 py-2 text-sm outline-none;
     background: var(--surface); border-color: var(--border); color: var(--text);
   }
-  .field input:focus, .field select:focus, .input:focus { border-color: var(--primary); }
+  .field input:focus, .field select:focus, .field textarea:focus, .input:focus { border-color: var(--primary); }
+  .row-link { @apply flex items-center justify-between gap-3 border-b py-2.5 text-sm last:border-b-0; border-color: var(--border); }
+  .row-link:hover { color: var(--primary); }
   .msg-error { @apply mt-2 text-sm; color: var(--bad); }
   .msg-ok { @apply mt-2 text-sm; color: var(--good); }
   .badge { @apply inline-block rounded-full px-2 py-0.5 text-xs font-medium; }
@@ -66,9 +75,9 @@ body { background: var(--bg); color: var(--text); }
   .badge-warn { background: var(--warn-bg); color: var(--warn); }
   .badge-bad { background: var(--bad-bg); color: var(--bad); }
   .badge-muted { background: var(--muted-bg); color: var(--muted); }
-  .tab { @apply rounded-lg px-3 py-1.5 text-sm font-medium; color: var(--muted); }
-  .tab:hover { background: var(--muted-bg); }
-  .tab-active { background: var(--muted-bg); color: var(--text); }
+  .tab { @apply border-b-2 border-transparent px-1 py-1 text-sm font-medium; color: var(--muted); }
+  .tab:hover { color: var(--text); }
+  .tab-active { color: var(--primary); border-color: var(--primary); }
   .table-wrap { @apply -mx-4 overflow-x-auto px-4; }
   table.data { @apply w-full border-collapse text-sm; }
   table.data th { @apply whitespace-nowrap border-b px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide; border-color: var(--border); color: var(--muted); }
@@ -91,3 +100,8 @@ body { background: var(--bg); color: var(--text); }
   body { background: #fff !important; color: #000 !important; }
   .paper-sheet { font-size: 12pt; color: #000; }
 }
+
+/* Review: the "what should change" box appears only for a flagged question. */
+.review-q .flag-note { display: none; }
+.review-q:has(.flag:checked) .flag-note { display: block; }
+.review-q:has(.flag:checked) { background: var(--warn-bg); margin: 0 -1.25rem; padding-left: 1.25rem; padding-right: 1.25rem; }

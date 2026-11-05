@@ -6,7 +6,9 @@ import { action } from "@/lib/action";
 import { requireActor } from "@/lib/auth";
 import { q, q1, tx } from "@/lib/db";
 import { id, ids, str } from "@/lib/forms";
-import { docxText, getPaper, getQuestions, parseQuestions, type Decision, type Reason } from "@/lib/papers";
+import {
+  currentAcademicYear, detectDetails, docxText, getPaper, getQuestions, getStaffAccounts, matchesPaper, parseQuestions, type Decision, type Reason,
+} from "@/lib/papers";
 
 const MAX_FILE = 4 * 1024 * 1024;
 const TEXT_MAX = 200_000;
@@ -50,15 +52,20 @@ async function paperText(fd: FormData, file: Awaited<ReturnType<typeof readFile>
   return "";
 }
 
-function details(fd: FormData) {
-  const class_code = str(fd, "class_code", 20);
-  const subject = str(fd, "subject", 100);
-  if (!class_code || !subject) throw new Error("Choose the class and type the subject.");
+/** Details typed in the form; anything left blank is read from the paper's own heading. */
+function details(fd: FormData, text = "") {
+  const found = text ? detectDetails(text) : null;
+  const get = (k: keyof NonNullable<typeof found>, max: number) => str(fd, k, max) || found?.[k] || "";
+  const class_code = get("class_code", 20);
+  const subject = get("subject", 100);
+  if (!class_code || !subject) {
+    throw new Error(`Couldn't find the ${!class_code && !subject ? "class and subject" : !class_code ? "class" : "subject"} in the paper – choose ${!class_code && !subject ? "them" : "it"} under Details.`);
+  }
   return {
     class_code, subject,
-    title: str(fd, "title", 200), exam: str(fd, "exam", 100), academic_year: str(fd, "academic_year", 20),
-    max_marks: str(fd, "max_marks", 20), duration: str(fd, "duration", 50),
-    instructions: str(fd, "instructions", 5000), note_to_reviewers: str(fd, "note_to_reviewers", 5000),
+    title: str(fd, "title", 200), exam: get("exam", 100), academic_year: get("academic_year", 20) || currentAcademicYear(),
+    max_marks: get("max_marks", 20), duration: get("duration", 50),
+    instructions: get("instructions", 5000), note_to_reviewers: str(fd, "note_to_reviewers", 5000),
   };
 }
 
@@ -77,10 +84,13 @@ async function insertQuestions(c: { query: (t: string, p: unknown[]) => Promise<
 
 export const createPaper = action(async (fd) => {
   await manager();
-  const d = details(fd);
   const file = await readFile(fd);
   const text = await paperText(fd, file);
   if (!text.trim() && !file) throw new Error("Paste the paper's text from Claude, or upload the file.");
+  const d = details(fd, text);
+  const sendNow = fd.get("intent") === "send";
+  // "Upload & send": straight to the teachers whose classes and subjects match – no extra step.
+  const reviewers = sendNow ? (await getStaffAccounts({ activeOnly: true })).filter((s) => matchesPaper(s, d)).map((s) => s.id) : [];
   const paperId = await tx(async (c) => {
     const r = await c.query<{ id: number }>(
       `INSERT INTO qp_papers (title, class_code, subject, exam, academic_year, max_marks, duration, instructions, note_to_reviewers, file_name, file_type, file_data)
@@ -89,11 +99,16 @@ export const createPaper = action(async (fd) => {
         file?.name ?? "", file?.type ?? "", file?.data ?? null],
     );
     const pid = r.rows[0].id;
-    if (text.trim()) await insertQuestions(c, pid, text);
+    const n = text.trim() ? await insertQuestions(c, pid, text) : 0;
+    if (sendNow && n && reviewers.length) {
+      for (const s of reviewers) await c.query("INSERT INTO qp_reviewers (paper_id, staff_id) VALUES ($1, $2)", [pid, s]);
+      await c.query("UPDATE qp_papers SET status='in_review', sent_at=now() WHERE id=$1", [pid]);
+    }
     return pid;
   });
   refresh();
-  redirect(`/papers/${paperId}?new=1`);
+  const sent = sendNow && reviewers.length && (await getPaper(paperId))?.status === "in_review";
+  redirect(`/papers/${paperId}?${sent ? "sent" : sendNow ? "nosend" : "new"}=1`);
 });
 
 export const savePaperDetails = action(async (fd) => {
@@ -284,65 +299,62 @@ export const makeRevision = action(async (fd) => {
 
 /* ---------------- Staff: review ---------------- */
 
-const DECISIONS: Decision[] = ["approved", "approved_with_changes", "disapproved"];
 const REASONS: Reason[] = ["too_many_changes", "fundamental"];
 
+/**
+ * A teacher's review. Every question is OK unless they flag it "Needs change" (with what to change).
+ * Approve becomes "Approved with changes" by itself when anything is flagged; Disapprove needs a reason and a comment.
+ */
 export const saveReview = action(async (fd) => {
   const me = await requireActor("staff");
   if (!me.staffId) throw new Error("Sign in with your own staff login to review papers.");
   const pid = id(fd);
-  const submit = fd.get("intent") === "submit";
+  const intent = String(fd.get("intent") ?? "save");
   const p = await getPaper(pid);
   const mine = await q1<{ submitted_at: string | null }>("SELECT submitted_at::text FROM qp_reviewers WHERE paper_id=$1 AND staff_id=$2", [pid, me.staffId]);
   if (!p || !mine) throw new Error("This paper isn't assigned to you.");
   if (p.status !== "in_review") throw new Error("This paper is no longer open for review.");
-  if (mine.submitted_at) throw new Error("You have already submitted your decision. Ask the Manager if you need to change it.");
+  if (mine.submitted_at) throw new Error("You have already sent your decision. Ask the Manager if you need to change it.");
 
   const questions = await getQuestions(pid);
-  const verdicts = questions.map((qn) => {
-    const v = fd.get(`verdict_${qn.id}`);
-    return { qn, verdict: v === "ok" || v === "change" ? v : null, comment: str(fd, `comment_${qn.id}`, 5000) };
-  });
-  const decisionRaw = String(fd.get("decision") ?? "") as Decision;
-  const decision: Decision = DECISIONS.includes(decisionRaw) ? decisionRaw : "";
-  const reasonRaw = String(fd.get("reason") ?? "") as Reason;
-  const reason: Reason = decision === "disapproved" && REASONS.includes(reasonRaw) ? reasonRaw : "";
+  const verdicts = questions.map((qn) => ({
+    qn,
+    verdict: fd.get(`verdict_${qn.id}`) === "change" ? ("change" as const) : ("ok" as const),
+    comment: str(fd, `comment_${qn.id}`, 5000),
+  }));
+  const changes = verdicts.filter((x) => x.verdict === "change");
   const comment = str(fd, "overall_comment", 10000);
+  const reasonRaw = String(fd.get("reason") ?? "") as Reason;
+  const reason: Reason = REASONS.includes(reasonRaw) ? reasonRaw : "";
 
-  if (submit) {
-    const label = (x: (typeof verdicts)[number]) => `Q${x.qn.label || "?"}`;
-    if (decision !== "disapproved") {
-      const missing = verdicts.filter((x) => !x.verdict);
-      if (missing.length) throw new Error(`Mark every question OK or Needs change first (missing: ${missing.slice(0, 8).map(label).join(", ")}${missing.length > 8 ? " …" : ""}).`);
+  let decision: Decision = "";
+  if (intent === "approve" || intent === "disapprove") {
+    const noNote = changes.filter((x) => !x.comment);
+    if (noNote.length) throw new Error(`Write what should change for ${noNote.slice(0, 8).map((x) => `Q${x.qn.label || "?"}`).join(", ")}.`);
+    if (intent === "approve") decision = changes.length ? "approved_with_changes" : "approved";
+    else {
+      if (!reason) throw new Error("Choose why you disapprove the paper.");
+      if (!comment) throw new Error("Write a short comment explaining what is wrong.");
+      decision = "disapproved";
     }
-    const noNote = verdicts.filter((x) => x.verdict === "change" && !x.comment);
-    if (noNote.length) throw new Error(`Write what should change for ${noNote.slice(0, 8).map(label).join(", ")}.`);
-    if (!decision) throw new Error("Choose your final decision at the bottom.");
-    const changes = verdicts.filter((x) => x.verdict === "change").length;
-    if (decision === "approved" && changes) throw new Error(`You asked for changes on ${changes} question(s) – choose "Approve with changes" instead.`);
-    if (decision === "approved_with_changes" && !changes && !comment) throw new Error("Mark which questions need changes, or write the changes in the final comment.");
-    if (decision === "disapproved" && !reason) throw new Error("Choose why you disapprove the paper.");
-    if (decision === "disapproved" && !comment) throw new Error("Write a short comment explaining what is wrong.");
   }
+  const submit = decision !== "";
 
   await tx(async (c) => {
     for (const x of verdicts) {
-      if (x.verdict) {
-        await c.query(
-          `INSERT INTO qp_question_reviews (question_id, staff_id, verdict, comment) VALUES ($1, $2, $3, $4)
-           ON CONFLICT (question_id, staff_id) DO UPDATE SET verdict = EXCLUDED.verdict, comment = EXCLUDED.comment`,
-          [x.qn.id, me.staffId, x.verdict, x.comment],
-        );
-      } else {
-        await c.query("DELETE FROM qp_question_reviews WHERE question_id=$1 AND staff_id=$2", [x.qn.id, me.staffId]);
-      }
+      await c.query(
+        `INSERT INTO qp_question_reviews (question_id, staff_id, verdict, comment) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (question_id, staff_id) DO UPDATE SET verdict = EXCLUDED.verdict, comment = EXCLUDED.comment`,
+        [x.qn.id, me.staffId, x.verdict, x.comment],
+      );
     }
     await c.query(
       `UPDATE qp_reviewers SET decision=$1, reason=$2, comment=$3, saved_at=now(), submitted_at=CASE WHEN $4 THEN now() ELSE NULL END
        WHERE paper_id=$5 AND staff_id=$6`,
-      [decision, reason, comment, submit, pid, me.staffId],
+      [decision, decision === "disapproved" ? reason : "", comment, submit, pid, me.staffId],
     );
   });
   refresh(pid);
-  return submit ? "Your decision has been sent to the Manager. Thank you!" : "Saved. You can come back and finish later.";
+  if (!submit) return "Saved – you can finish later.";
+  return decision === "approved" ? "Approved. Thank you!" : decision === "approved_with_changes" ? `Approved with ${changes.length} change${changes.length > 1 ? "s" : ""}. Thank you!` : "Disapproval sent to the Manager.";
 });

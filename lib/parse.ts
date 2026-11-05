@@ -4,7 +4,7 @@
 
 export type ParsedQuestion = { section: string; label: string; body: string; marks: string };
 
-const SECTION_RE = /^(section|part)\s+([a-z0-9ivx]+)\b.*$/i;
+const SECTION_RE = /^(section|part)(?:\s+|\s*[-–—:.]\s*)([a-z0-9ivx]{1,4})\b.*$/i;
 // "1.", "1)", "Q1.", "Q.1", "Question 1:" – not "(a)", "i.", or "1.5 marks".
 const QUESTION_RE = /^(?:q(?:uestion)?\s*\.?\s*)?(\d{1,3})\s*[.):\-–]\s*(?!\d)(.*)$|^q(?:uestion)?\s*\.?\s*(\d{1,3})\s+(.*)$/i;
 const INSTRUCTIONS_RE = /^(general\s+)?instructions?\s*:?\s*$/i;
@@ -69,4 +69,61 @@ export function parseQuestions(text: string): { questions: ParsedQuestion[]; hea
     }
   }
   return { questions: questions.filter((x) => x.body), header };
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Reading the paper's details (class, subject, exam …) from its heading, so nobody has to type them.
+ * ---------------------------------------------------------------------------------------------- */
+
+export type DetectedDetails = {
+  class_code: string; subject: string; exam: string; academic_year: string; max_marks: string; duration: string; instructions: string;
+};
+
+const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+const EXAM_WORDS: [RegExp, string][] = [
+  [/\bquarterly\b/i, "Quarterly"],
+  [/\bhalf[\s-]*yearly\b/i, "Half yearly"],
+  [/\b(annual|final)\s+exam/i, "Annual"],
+  [/\bannual\b/i, "Annual"],
+  [/\bunit\s*test\b/i, "Unit test"],
+  [/\brevision\s*(test|exam)/i, "Revision test"],
+  [/\b(pre[\s-]*board|model\s+exam|board\s+exam)/i, "Board examination (model)"],
+  [/\bmid[\s-]*term\b/i, "Mid-term"],
+];
+const STOP = String.raw`(?=\s{2,}|\s*[|,;]|\s+(?:max|maximum|total|marks?|time|duration|class|std|exam|date)\b|$)`;
+
+function normaliseClass(raw: string) {
+  const v = raw.toUpperCase().replace(/\s+/g, "").replace(/^STD\.?/, "");
+  if (/^\d{1,2}$/.test(v)) return ROMAN[Number(v)] ?? "";
+  return ["LKG", "UKG", ...ROMAN.slice(1)].includes(v) ? v : "";
+}
+
+export function detectDetails(text: string): DetectedDetails {
+  const { header } = parseQuestions(text);
+  const top = header.join("\n");
+  const pick = (re: RegExp) => re.exec(top)?.[1]?.trim() ?? "";
+  const cls = normaliseClass(pick(/\b(?:class|std\.?|standard|grade)\s*[:\-–]?\s*(LKG|UKG|[IVX]{1,4}|\d{1,2})\b/i));
+  const subject = pick(new RegExp(String.raw`\bsubject\s*[:\-–]\s*([A-Za-z஀-௿ऀ-ॿ][^\n|,;]{0,40}?)${STOP}`, "im"));
+  const marks = pick(/\b(?:max(?:imum)?\.?\s*marks?|total\s*marks?|marks)\s*[:\-–]?\s*(\d{1,3})\b/i);
+  const duration = pick(/\b(?:time(?:\s*allowed)?|duration)\s*[:\-–]?\s*((?:\d+(?:\.\d+)?|[½¼¾]|\d+\s*[½¼¾])\s*(?:hours?|hrs?\.?|minutes?|mins?\.?)(?:\s*(?:and\s*)?\d+\s*(?:minutes?|mins?\.?))?)/i);
+  const year = /\b(20\d{2})\s*[-–/]\s*(20)?(\d{2})\b/.exec(top);
+  const exam = EXAM_WORDS.find(([re]) => re.test(top))?.[1] ?? "";
+  // Lines after a "General instructions" heading.
+  const at = header.findIndex((h) => /^(general\s+)?instructions?\s*:?\s*$/i.test(h));
+  const instructions = at >= 0 ? header.slice(at + 1).join("\n") : "";
+  return {
+    class_code: cls,
+    subject: subject.replace(/\s*[-–:]\s*$/, ""),
+    exam,
+    academic_year: year ? `${year[1]}-${year[3]}` : "",
+    max_marks: marks,
+    duration: duration.replace(/\bhrs?\.?$/i, "hours").replace(/\s+/g, " "),
+    instructions,
+  };
+}
+
+/** The current school year, June to May (e.g. "2026-27"). */
+export function currentAcademicYear(d = new Date()) {
+  const y = d.getMonth() >= 5 ? d.getFullYear() : d.getFullYear() - 1;
+  return `${y}-${String((y + 1) % 100).padStart(2, "0")}`;
 }

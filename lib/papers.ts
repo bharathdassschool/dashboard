@@ -113,18 +113,37 @@ function tokens(s: string) {
   return s.toLowerCase().split(/[,;/\n]+/).map((t) => t.trim()).filter(Boolean);
 }
 
+/** Short forms teachers use for the same subject, so "Maths" matches a paper headed "Mathematics". */
+const SUBJECT_ALIASES: [RegExp, string][] = [
+  [/^(maths?|mathematics|math)$/, "mathematics"],
+  [/^(sci|science|gen(eral)? science)$/, "science"],
+  [/^(eng|english|english language)$/, "english"],
+  [/^(social|social science|social studies|sst|soc\.? sci\.?)$/, "social science"],
+  [/^(cs|comp|computer|computers|computer science)$/, "computer science"],
+  [/^(evs|environmental studies|environmental science)$/, "evs"],
+  [/^(phy|physics)$/, "physics"],
+  [/^(chem|chemistry)$/, "chemistry"],
+  [/^(bio|biology)$/, "biology"],
+  [/^(tam|tamil)$/, "tamil"],
+  [/^(hin|hindi)$/, "hindi"],
+];
+function subjectKey(s: string) {
+  const t = s.toLowerCase().replace(/\s+/g, " ").trim();
+  return SUBJECT_ALIASES.find(([re]) => re.test(t))?.[1] ?? t;
+}
+
 /** Whether a staff member's classes and subjects cover a paper (used to pre-tick reviewers). */
 export function matchesPaper(s: Pick<StaffAccount, "classes" | "subjects">, p: Pick<Paper, "class_code" | "subject">) {
-  const subj = p.subject.toLowerCase().trim();
+  const subj = subjectKey(p.subject);
   const cls = p.class_code.toLowerCase().trim();
-  const subjOk = tokens(s.subjects).some((t) => t === subj || t.includes(subj) || subj.includes(t));
+  const subjOk = tokens(s.subjects).map(subjectKey).some((t) => t === subj || t.includes(subj) || subj.includes(t));
   const classes = tokens(s.classes);
   // "VIII A" counts as class VIII; an empty class list means "any class".
   const clsOk = classes.length === 0 || classes.some((t) => t === cls || t.split(/\s+/)[0] === cls);
   return subjOk && clsOk;
 }
 
-export { parseQuestions, type ParsedQuestion } from "./parse";
+export { currentAcademicYear, detectDetails, parseQuestions, type DetectedDetails, type ParsedQuestion } from "./parse";
 
 /** Text of an uploaded Word file (.docx), or "" when it can't be read. */
 export async function docxText(buf: Buffer) {
@@ -138,8 +157,9 @@ export async function docxText(buf: Buffer) {
 
 /** Counts for the Manager's home page. */
 export async function paperCounts() {
-  const r = await q1<{ drafts: number; in_review: number; waiting: number; final: number; flagged: number }>(
+  const r = await q1<{ drafts: number; in_review: number; waiting: number; final: number; flagged: number; ready: number }>(
     `SELECT
+       COUNT(*) FILTER (WHERE status = 'in_review' AND NOT EXISTS (SELECT 1 FROM qp_reviewers r WHERE r.paper_id = qp_papers.id AND r.submitted_at IS NULL))::int AS ready,
        COUNT(*) FILTER (WHERE status = 'draft')::int AS drafts,
        COUNT(*) FILTER (WHERE status = 'in_review')::int AS in_review,
        COUNT(*) FILTER (WHERE outcome = 'final')::int AS final,
@@ -148,5 +168,5 @@ export async function paperCounts() {
           WHERE p.status = 'in_review' AND r.submitted_at IS NOT NULL AND r.decision IN ('approved_with_changes', 'disapproved')) AS flagged
      FROM qp_papers`,
   );
-  return r ?? { drafts: 0, in_review: 0, waiting: 0, final: 0, flagged: 0 };
+  return r ?? { drafts: 0, in_review: 0, waiting: 0, final: 0, flagged: 0, ready: 0 };
 }

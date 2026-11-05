@@ -1,4 +1,10 @@
+import { Letterhead } from "@/components/Letterhead";
 import type { Paper, Question } from "@/lib/papers";
+
+/** "Quarterly" → "Quarterly Examination"; anything already naming a test or exam stays as it is. */
+function examHeading(exam: string) {
+  return !exam || /exam|test/i.test(exam) ? exam : `${exam} Examination`;
+}
 
 /** The paper as it is printed: school heading, class / subject / marks / time, instructions, questions by section. */
 export function PaperSheet({ paper, questions, children }: { paper: Paper; questions: Question[]; children?: (q: Question) => React.ReactNode }) {
@@ -6,8 +12,9 @@ export function PaperSheet({ paper, questions, children }: { paper: Paper; quest
   return (
     <article className="paper-sheet">
       <header className="mb-4 text-center">
-        <div className="text-lg font-bold uppercase tracking-wide">Bharath Dass School</div>
-        {(paper.exam || paper.academic_year) && <div className="font-semibold">{[paper.exam, paper.academic_year].filter(Boolean).join(" · ")}</div>}
+        <div className="flex justify-center"><Letterhead size="sm" /></div>
+        <div className="rule my-3" />
+        {(paper.exam || paper.academic_year) && <div className="serif text-lg font-semibold">{[examHeading(paper.exam), paper.academic_year].filter(Boolean).join(" · ")}</div>}
         {paper.title && <div>{paper.title}</div>}
         <div className="mt-2 flex flex-wrap justify-between gap-2 border-y py-1 text-sm font-medium" style={{ borderColor: "var(--border)" }}>
           <span>Class: {paper.class_code}</span>

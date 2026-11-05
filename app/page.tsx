@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { DbMissing, Shell } from "@/components/Shell";
-import { Card, PageHeader, Stat } from "@/components/ui";
+import { Shell } from "@/components/Shell";
+import { Card, PageHeader, Stat, Stats } from "@/components/ui";
 import { appUrl, fetchSummary, type AppKey, type Fetched } from "@/lib/apps";
 import { requireSession, type Session } from "@/lib/auth";
 import { databaseUrl } from "@/lib/db";
@@ -10,9 +10,23 @@ export const dynamic = "force-dynamic";
 
 const inr = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 const money = (n: number) => inr.format(Math.round(n || 0));
+const go = (app: AppKey, to: string) => `/go/${app}?to=${encodeURIComponent(to)}`;
 
-type Link = { app: AppKey; to: string; label: string; primary?: boolean };
-const go = (l: Link) => `/go/${l.app}?to=${encodeURIComponent(l.to)}`;
+type Row = { href: string; label: string; note?: React.ReactNode; external?: boolean };
+
+/** A plain list of links – the portal's main building block. */
+function Rows({ rows }: { rows: Row[] }) {
+  return (
+    <div>
+      {rows.map((r) => {
+        const inner = <><span>{r.label}</span><span className="text-muted">{r.note ?? "→"}</span></>;
+        return r.external
+          ? <a key={r.href + r.label} href={r.href} className="row-link">{inner}</a>
+          : <Link key={r.href + r.label} href={r.href} className="row-link">{inner}</Link>;
+      })}
+    </div>
+  );
+}
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ missing?: string }> }) {
   const session = await requireSession();
@@ -20,92 +34,64 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
   const toReview = session.staffId && databaseUrl() ? await countToReview(session.staffId) : 0;
   return (
     <Shell session={session} toReview={toReview}>
-      {missing && <p className="card mb-6 text-sm text-warn">That app isn&apos;t connected to the portal yet (its web address is missing in Vercel).</p>}
+      {missing && <p className="mb-6 text-sm text-warn">That app isn&apos;t connected yet – its address is missing in Vercel.</p>}
       {session.role === "manager" ? <ManagerHome /> : session.role === "admin" ? <AdminHome /> : <StaffHome session={session} toReview={toReview} />}
     </Shell>
   );
 }
 
-/* ---------------- Staff: apply for leave and see their balance ---------------- */
+/* ---------------- Staff ---------------- */
 
 function StaffHome({ session, toReview }: { session: Session; toReview: number }) {
-  const leave = appUrl("leave");
+  const rows: Row[] = [
+    ...(session.staffId ? [{ href: "/papers", label: "Question papers to review", note: toReview ? <span className="badge badge-warn">{toReview} waiting</span> : "none waiting" }] : []),
+    { href: go("leave", "/leave/apply"), label: "Apply for leave", external: true },
+    { href: go("leave", "/leave/my"), label: "My leave balance", external: true },
+  ];
   return (
     <>
-      <PageHeader title={session.staffId ? `Welcome, ${session.name}` : "Welcome"} subtitle="Apply for leave, check your leave balance and review question papers." />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {session.staffId && (
-          <Link className="card hover:opacity-90" href="/papers">
-            <div className="text-lg font-semibold">📝 Question papers {toReview > 0 && <span className="badge badge-warn ml-1 align-middle">{toReview} to review</span>}</div>
-            <p className="mt-1 text-sm text-muted">{toReview ? "Papers are waiting for your review." : "Nothing waiting – papers sent to you will appear here."}</p>
-          </Link>
-        )}
-        <a className="card hover:opacity-90" href={go({ app: "leave", to: "/leave/apply", label: "" })}>
-          <div className="text-lg font-semibold">🗓 Apply for leave</div>
-          <p className="mt-1 text-sm text-muted">Shows your balance before and after the leave.</p>
-        </a>
-        <a className="card hover:opacity-90" href={go({ app: "leave", to: "/leave/my", label: "" })}>
-          <div className="text-lg font-semibold">📊 My leave balance</div>
-          <p className="mt-1 text-sm text-muted">Sick, casual and paid leave left, and requests waiting for approval.</p>
-        </a>
-      </div>
-      <p className="mt-4 text-sm text-muted">
-        The first time, the leave page asks you to sign in with <strong>your own staff login</strong> (not the shared one).
-        {!leave && " The leave app isn't connected yet."}
-        {!session.staffId && " To review question papers, sign in with the personal login the Manager gave you."}
+      <PageHeader title={session.staffId ? `Welcome, ${session.name}` : "Welcome"} />
+      <Card><Rows rows={rows} /></Card>
+      <p className="mt-3 text-xs text-muted">
+        Leave opens in the leave app – sign in there with your own staff login.{!appUrl("leave") && " (Not connected yet.)"}
       </p>
     </>
   );
 }
 
-/* ---------------- Admin: data entry everywhere, no figures ---------------- */
+/* ---------------- Admin: data entry, no figures ---------------- */
 
-const ADMIN_GROUPS: { title: string; icon: string; links: Link[] }[] = [
-  { title: "Excursion fees", icon: "🚌", links: [
-    { app: "office", to: "/excursion/payments#add", label: "Record a payment", primary: true },
-    { app: "office", to: "/excursion", label: "Class rosters" },
-    { app: "office", to: "/excursion/payments", label: "Payment log" },
-    { app: "office", to: "/excursion/schedule", label: "Fee schedule" },
-    { app: "office", to: "/excursion/unmatched", label: "Unmatched payments" },
-    { app: "office", to: "/excursion/trips", label: "Trip details & expenses" },
+const ADMIN: { title: string; rows: Row[] }[] = [
+  { title: "Excursion fees", rows: [
+    { href: go("office", "/excursion/payments#add"), label: "Record a payment", external: true },
+    { href: go("office", "/excursion"), label: "Class rosters", external: true },
+    { href: go("office", "/excursion/schedule"), label: "Fee schedule", external: true },
+    { href: go("office", "/excursion/trips"), label: "Trip details & expenses", external: true },
   ] },
-  { title: "School shops", icon: "🛒", links: [
-    { app: "office", to: "/", label: "Daily sales, stock & costs", primary: true },
+  { title: "Shops & staff tours", rows: [
+    { href: go("office", "/"), label: "Daily sales, stock & costs", external: true },
+    { href: go("office", "/staff-tours"), label: "Staff tour contributions", external: true },
   ] },
-  { title: "Staff tours", icon: "🧳", links: [
-    { app: "office", to: "/staff-tours", label: "Contributions & expenses", primary: true },
+  { title: "Staff", rows: [
+    { href: go("leave", "/leave/apply"), label: "Apply leave on behalf of staff", external: true },
+    { href: go("leave", "/leave/log"), label: "Leave log", external: true },
+    { href: go("leave", "/payslips"), label: "Upload payslips", external: true },
   ] },
-  { title: "Staff leave", icon: "🗓", links: [
-    { app: "leave", to: "/leave/apply", label: "Apply on behalf of staff", primary: true },
-    { app: "leave", to: "/leave/log", label: "Leave log" },
-    { app: "leave", to: "/leave/staff", label: "Staff list" },
-  ] },
-  { title: "Payslips", icon: "₹", links: [
-    { app: "leave", to: "/payslips", label: "Upload payslips", primary: true },
-  ] },
+  { title: "Question papers", rows: [{ href: "/papers", label: "View & print papers" }] },
 ];
 
 function AdminHome() {
   return (
     <>
-      <PageHeader title="Welcome, Admin" subtitle="Pick what you want to enter. Each button opens the right page, already signed in." />
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-        <Card title={<><span aria-hidden>📝</span> Question papers</>}>
-          <div className="flex flex-wrap gap-2"><Link href="/papers" className="btn-primary">View & print papers</Link></div>
-        </Card>
-        {ADMIN_GROUPS.map((g) => (
-          <Card key={g.title} title={<><span aria-hidden>{g.icon}</span> {g.title}</>}>
-            <div className="flex flex-wrap gap-2">
-              {g.links.map((l) => <a key={l.label} href={go(l)} className={l.primary ? "btn-primary" : "btn"}>{l.label}</a>)}
-            </div>
-          </Card>
-        ))}
+      <PageHeader title="Welcome" subtitle="What would you like to enter?" />
+      <div className="grid gap-5 md:grid-cols-2">
+        {ADMIN.map((g) => <Card key={g.title} title={g.title}><Rows rows={g.rows} /></Card>)}
       </div>
     </>
   );
 }
 
-/* ---------------- Manager: every figure, approvals, and full access ---------------- */
+/* ---------------- Manager: everything ---------------- */
 
 type OfficeSummary = {
   excursion: { due: number; collected: number; outstanding: number; unpaidStudents: number };
@@ -129,117 +115,72 @@ async function ManagerHome() {
   const o = office.ok ? office.data : null;
   const l = leave.ok ? leave.data : null;
   const p = papers;
-  const shopMonthNet = o ? o.shops.reduce((a, s) => a + s.monthNet, 0) : 0;
+  const shopNet = o ? o.shops.reduce((a, s) => a + s.monthNet, 0) : 0;
   const waiting = l ? l.waitingApprover1 + l.waitingApprover2 : 0;
+
+  // Only what needs the Manager – everything else runs on its own.
+  const attention: Row[] = [
+    ...(waiting ? [{ href: go("leave", "/leave/approvals"), label: "Leave waiting for approval", note: <span className="badge badge-warn">{waiting}</span>, external: true }] : []),
+    ...(p?.ready ? [{ href: "/papers", label: "Question papers with all reviews in – decide", note: <span className="badge badge-warn">{p.ready}</span> }] : []),
+    ...(p?.drafts ? [{ href: "/papers", label: "Question paper drafts not sent yet", note: <span className="badge badge-muted">{p.drafts}</span> }] : []),
+    ...(l?.overLimit.length ? [{ href: go("leave", "/leave/staff"), label: `Over the leave limit: ${l.overLimit.slice(0, 3).join(", ")}${l.overLimit.length > 3 ? " …" : ""}`, note: <span className="badge badge-bad">{l.overLimit.length}</span>, external: true }] : []),
+  ];
+
   return (
     <>
-      <PageHeader title="Welcome, Manager" subtitle="Everything at a glance. Click any section to open it with full access." />
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Excursion fees collected" value={o ? money(o.excursion.collected) : "—"} tone="good" hint={o ? `${money(o.excursion.outstanding)} outstanding` : undefined} />
-        <Stat label="Trip net profit" value={o ? money(o.trips.net) : "—"} tone={o && o.trips.net < 0 ? "bad" : "good"} hint={o ? `${money(o.trips.income)} income − ${money(o.trips.expense)} expense` : undefined} />
-        <Stat label="Shops net profit (this month)" value={o ? money(shopMonthNet) : "—"} tone={shopMonthNet < 0 ? "bad" : "good"} />
-        <Stat label="Leave waiting for approval" value={l ? waiting : "—"} tone={waiting > 0 ? "warn" : undefined} hint={l ? `${l.onLeaveToday.length} on leave today` : undefined} />
-      </div>
+      <PageHeader title="Overview" />
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card title="🚌 Excursion fees" actions={<a className="btn-link" href={go({ app: "office", to: "/excursion", label: "" })}>Open →</a>}>
-          <Problem r={office} />
-          {o && (
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Stat label="Fee due" value={money(o.excursion.due)} />
-              <Stat label="Outstanding" value={money(o.excursion.outstanding)} tone={o.excursion.outstanding > 0 ? "bad" : undefined} />
-              <Stat label="Collection" value={o.excursion.due ? `${Math.round((o.excursion.collected / o.excursion.due) * 100)}%` : "—"} hint={`${o.excursion.unpaidStudents} students not yet paid`} />
+      <Card className="mb-5">
+        <Stats>
+          <Stat label="Fees collected" value={o ? money(o.excursion.collected) : "—"} hint={o ? `${money(o.excursion.outstanding)} outstanding` : undefined} />
+          <Stat label="Trip net profit" value={o ? money(o.trips.net) : "—"} tone={o && o.trips.net < 0 ? "bad" : undefined} />
+          <Stat label="Shops · this month" value={o ? money(shopNet) : "—"} tone={shopNet < 0 ? "bad" : undefined} hint="net profit" />
+          <Stat label="On leave today" value={l ? l.onLeaveToday.length : "—"} hint={l ? `of ${l.staff} staff` : undefined} />
+        </Stats>
+        <Problem r={office} />
+        <Problem r={leave} />
+      </Card>
+
+      <Card title="Needs your attention" className="mb-5">
+        {attention.length ? <Rows rows={attention} /> : <p className="text-sm text-muted">Nothing right now.</p>}
+      </Card>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <Card title="Office">
+          <Rows rows={[
+            { href: go("office", "/excursion"), label: "Excursion fees", note: o ? `${o.excursion.due ? Math.round((o.excursion.collected / o.excursion.due) * 100) : 0}% collected` : undefined, external: true },
+            { href: go("office", "/excursion/trips"), label: "Trip budgets", note: o ? money(o.trips.net) : undefined, external: true },
+            ...(o?.shops ?? []).map((s) => ({ href: go("office", `/shops/${s.slug}`), label: s.name, note: <span className={s.monthNet < 0 ? "text-bad" : ""}>{money(s.monthNet)} this month</span>, external: true })),
+            ...(o?.staffTours ?? []).map((t) => ({ href: go("office", "/staff-tours"), label: t.name, note: `${money(t.collected)} of ${money(t.due)}`, external: true })),
+          ]} />
+        </Card>
+        <Card title="Staff leave">
+          {l && l.onLeaveToday.length > 0 && (
+            <div className="mb-2 text-sm">
+              {l.onLeaveToday.map((a, i) => <div key={i} className="flex justify-between py-1"><span>{a.name}</span><span className="text-muted">{a.type}</span></div>)}
             </div>
           )}
-          <div className="mt-4 flex flex-wrap gap-2">
-            <a className="btn" href={go({ app: "office", to: "/excursion/trips", label: "" })}>Trip budgets</a>
-            <a className="btn" href={go({ app: "office", to: "/excursion/payments", label: "" })}>Payment log</a>
-            <a className="btn" href={go({ app: "office", to: "/excursion/years", label: "" })}>Past years</a>
-          </div>
+          <Rows rows={[
+            { href: go("leave", "/leave"), label: "Leave overview", external: true },
+            { href: go("leave", "/leave/year-end"), label: "Year-end payout", external: true },
+            { href: go("leave", "/payslips"), label: "Payslips", external: true },
+          ]} />
         </Card>
-
-        <Card title="🗓 Staff leave" actions={<a className="btn-link" href={go({ app: "leave", to: "/leave", label: "" })}>Open →</a>}>
-          <Problem r={leave} />
-          {l && (
-            <>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <Stat label="Waiting – approver 1" value={l.waitingApprover1} tone={l.waitingApprover1 ? "warn" : undefined} />
-                <Stat label="Waiting – approver 2" value={l.waitingApprover2} tone={l.waitingApprover2 ? "warn" : undefined} />
-                <Stat label="Over the limit" value={l.overLimit.length} tone={l.overLimit.length ? "bad" : undefined} hint={`of ${l.staff} staff`} />
-              </div>
-              <div className="mt-4 text-sm">
-                <div className="mb-1 font-medium">On leave today</div>
-                {l.onLeaveToday.length === 0 ? <p className="text-muted">Nobody.</p> : (
-                  <ul className="flex flex-col gap-1">
-                    {l.onLeaveToday.map((a, i) => <li key={i} className="flex justify-between gap-2"><span>{a.name}</span><span className="text-muted">{a.type} · {a.status}</span></li>)}
-                  </ul>
-                )}
-              </div>
-            </>
-          )}
-          <div className="mt-4 flex flex-wrap gap-2">
-            <a className="btn-primary" href={go({ app: "leave", to: "/leave/approvals", label: "" })}>Approvals{l && waiting ? ` (${waiting})` : ""}</a>
-            <a className="btn" href={go({ app: "leave", to: "/leave/year-end", label: "" })}>Year-end payout</a>
-            <a className="btn" href={go({ app: "leave", to: "/payslips", label: "" })}>Payslips</a>
-          </div>
+        <Card title="Question papers">
+          <Rows rows={[
+            { href: "/papers/new", label: "Upload a paper" },
+            { href: "/papers", label: "All papers", note: p ? `${p.in_review} in review · ${p.final} final` : undefined },
+          ]} />
         </Card>
-
-        <Card title="🛒 School shops" actions={<a className="btn-link" href={go({ app: "office", to: "/", label: "" })}>Open →</a>}>
-          <Problem r={office} />
-          {o && (o.shops.length === 0 ? <p className="text-sm text-muted">No shops yet.</p> : (
-            <div className="table-wrap">
-              <table className="data">
-                <thead><tr><th>Shop</th><th className="num">Sales today</th><th className="num">Sales this month</th><th className="num">Net profit (month)</th><th className="num">Net profit (all time)</th></tr></thead>
-                <tbody>
-                  {o.shops.map((s) => (
-                    <tr key={s.slug}>
-                      <td><a className="btn-link" href={go({ app: "office", to: `/shops/${s.slug}`, label: "" })}>{s.name}</a></td>
-                      <td className="num">{money(s.todayRevenue)}</td><td className="num">{money(s.monthRevenue)}</td>
-                      <td className={`num ${s.monthNet < 0 ? "text-bad" : ""}`}>{money(s.monthNet)}</td>
-                      <td className={`num ${s.allTimeNet < 0 ? "text-bad" : ""}`}>{money(s.allTimeNet)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ))}
-        </Card>
-
-        <Card title="🧳 Staff tours" actions={<a className="btn-link" href={go({ app: "office", to: "/staff-tours", label: "" })}>Open →</a>}>
-          <Problem r={office} />
-          {o && (o.staffTours.length === 0 ? <p className="text-sm text-muted">No open staff tours.</p> : (
-            <ul className="flex flex-col gap-2 text-sm">
-              {o.staffTours.map((t, i) => <li key={i} className="flex justify-between gap-2"><span>{t.name}</span><span className="tabular-nums">{money(t.collected)} of {money(t.due)}</span></li>)}
-            </ul>
-          ))}
-        </Card>
-
-        <Card title="📝 Question papers" actions={<Link className="btn-link" href="/papers">Open →</Link>}>
-          {!p ? <DbMissing /> : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Stat label="Drafts" value={p.drafts} />
-              <Stat label="In review" value={p.in_review} hint={`${p.waiting} reviews still to come`} />
-              <Stat label="Changes / disapproved" value={p.flagged} tone={p.flagged ? "warn" : undefined} />
-              <Stat label="Final" value={p.final} tone={p.final ? "good" : undefined} />
-            </div>
-          )}
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Link className="btn-primary" href="/papers/new">Upload a paper</Link>
-            <Link className="btn" href="/staff">Staff logins</Link>
-          </div>
-        </Card>
-
-        <Card title="⚙ Users & settings">
-          <div className="flex flex-wrap gap-2">
-            <a className="btn" href={go({ app: "office", to: "/admin/users", label: "" })}>Office users</a>
-            <a className="btn" href={go({ app: "office", to: "/admin/import", label: "" })}>Office: import from Excel</a>
-            <a className="btn" href={go({ app: "leave", to: "/admin/users", label: "" })}>Leave users</a>
-            <a className="btn" href={go({ app: "leave", to: "/leave/rules", label: "" })}>Leave rules</a>
-            <Link className="btn" href="/staff">Staff logins (question papers)</Link>
-          </div>
+        <Card title="Settings">
+          <Rows rows={[
+            { href: "/staff", label: "Staff logins" },
+            { href: go("office", "/admin/users"), label: "Office users", external: true },
+            { href: go("leave", "/admin/users"), label: "Leave users", external: true },
+            { href: go("leave", "/leave/rules"), label: "Leave rules", external: true },
+          ]} />
         </Card>
       </div>
     </>
   );
 }
-
