@@ -72,34 +72,35 @@ async function StaffHome({ session, toReview }: { session: Session; toReview: nu
           </Stats>
         </Card>
       )}
-      <div className="grid gap-5 md:grid-cols-2">
+      <div className="grid gap-5 md:grid-cols-3">
         <Card title="Leave">
           <Rows rows={[
             { href: go("leave", "/leave/apply"), label: "Apply for leave", external: true },
-            { href: go("leave", "/leave/my"), label: me ? "My leave & history" : "My leave balance", external: true },
+            { href: go("leave", "/leave/my"), label: "My leave & history", external: true },
             ...(me?.requests ?? []).slice(0, 3).map((r) => ({
               href: go("leave", "/leave/my"), external: true,
-              label: `${r.type} · ${day(r.from)}${r.to !== r.from ? ` – ${day(r.to)}` : ""}`,
+              label: `${r.type.replace(" Leave", "")} · ${day(r.from)}${r.to !== r.from ? ` – ${day(r.to)}` : ""}`,
               note: <span className={`badge ${r.status === "Approved" ? "badge-good" : r.status === "Rejected" ? "badge-bad" : "badge-warn"}`}>{r.status}</span>,
             })),
           ]} />
         </Card>
-        {session.staffId && (
-          <Card title="Question papers">
-            <Rows rows={[{ href: "/papers", label: "Papers to review", note: toReview ? <span className="badge badge-warn">{toReview} waiting</span> : "none waiting" }]} />
-          </Card>
-        )}
-        {me && (
-          <Card title="Payslips">
-            {me.payslips.length === 0 ? <p className="text-sm text-muted">No payslips yet.</p> : (
-              <Rows rows={me.payslips.map((p) => ({ href: go("leave", `/api/payslips/${p.id}`), label: monthName(p.month), note: "View →", external: true }))} />
-            )}
-          </Card>
-        )}
+        <Card title="Payslips">
+          {me
+            ? me.payslips.length === 0
+              ? <p className="text-sm text-muted">No payslips yet.</p>
+              : <Rows rows={me.payslips.map((p) => ({ href: go("leave", `/api/payslips/${p.id}`), label: monthName(p.month), note: "View →", external: true }))} />
+            : <Rows rows={[{ href: go("leave", "/payslips/my"), label: "My payslips", external: true }]} />}
+        </Card>
+        <Card title="Academics">
+          {session.staffId
+            ? <Rows rows={[{ href: "/papers", label: "Question papers to review", note: toReview ? <span className="badge badge-warn">{toReview} waiting</span> : "none waiting" }]} />
+            : <p className="text-sm text-muted">Question papers for your subjects appear here when you sign in with your own login.</p>}
+        </Card>
       </div>
       {!session.leaveUserId && (
         <p className="mt-4 text-sm text-muted">
-          Sign in with <strong>your own leave login</strong> to see your balance, payslips and question papers here.
+          This is the shared Staff login, so it can&apos;t show anyone&apos;s own leave, payslips or papers. Sign out and sign in with
+          {" "}<strong>your own leave login</strong> to see them here. Leave and payslip links ask for it.
           {!appUrl("leave") && " (The leave app isn't connected yet.)"}
         </p>
       )}

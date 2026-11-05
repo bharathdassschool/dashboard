@@ -20,8 +20,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ app:
     // A teacher signed in with their own leave login opens their own leave pages as themselves;
     // the shared "staff" login has no such account, so it goes to the leave app's own sign-in.
     if (app !== "leave") return NextResponse.redirect(new URL("/", req.url), 303);
-    if (!session?.leaveUserId) return NextResponse.redirect(base + path, 303);
-    url.searchParams.set("token", await appToken(app, "staff", "staff-login", { uid: session.leaveUserId }));
+    if (session?.leaveUserId) url.searchParams.set("token", await appToken(app, "staff", "staff-login", { uid: session.leaveUserId }));
+    else url.searchParams.set("token", await appToken(app, "staff", "signout"));
   } else {
     url.searchParams.set("token", await appToken(app, role, "login"));
   }
