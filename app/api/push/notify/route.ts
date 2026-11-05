@@ -5,9 +5,9 @@ import { sendPush, type PushTarget } from "@/lib/push";
 export const dynamic = "force-dynamic";
 
 /**
- * The leave app asks the portal to send a phone notification (new leave request → Manager; decision → that staff
- * member). Only with a one-minute pass signed with PORTAL_SECRET for the portal, purpose "notify".
- * Body: { to: "manager" | { leaveUserId }, title, body, url } – url is a portal path.
+ * The leave app asks the portal to send a phone notification (new leave request or something fixed → Manager;
+ * an entry flagged → Admin; an entry sent back → that staff member). Only with a one-minute pass signed with PORTAL_SECRET for the portal, purpose "notify".
+ * Body: { to: "manager" | "admin" | { leaveUserId }, title, body, url } – url is a portal path.
  */
 export async function POST(req: Request) {
   const secret = process.env.PORTAL_SECRET;
@@ -20,8 +20,8 @@ export async function POST(req: Request) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
   const b = (await req.json().catch(() => ({}))) as { to?: unknown; title?: string; body?: string; url?: string };
-  const target: PushTarget | null = b.to === "manager"
-    ? { role: "manager" }
+  const target: PushTarget | null = b.to === "manager" || b.to === "admin"
+    ? { role: b.to }
     : typeof b.to === "object" && b.to && Number.isInteger((b.to as { leaveUserId?: number }).leaveUserId)
       ? { leaveUserIds: [(b.to as { leaveUserId: number }).leaveUserId] }
       : null;

@@ -47,10 +47,20 @@ export async function ManagerReview({ paper, questions }: { paper: Paper; questi
                     <DecisionBadge decision={r.decision} submitted={!!r.submitted_at} />
                     {r.submitted_at && r.reason && <div className="mt-1 text-xs text-bad">{REASON_LABEL[r.reason]}</div>}
                   </td>
-                  <td className="max-w-md whitespace-pre-wrap text-sm">{r.submitted_at ? r.comment || <span className="text-muted">—</span> : <span className="text-muted">Not submitted yet</span>}</td>
+                  <td className="max-w-md whitespace-pre-wrap text-sm">{r.submitted_at ? r.comment || <span className="text-muted">—</span> : <span className="text-muted">{r.return_note ? <>Sent back: “{r.return_note}”</> : "Not submitted yet"}</span>}</td>
                   <td className="whitespace-nowrap text-sm text-muted">{when(r.submitted_at ?? r.saved_at)}</td>
                   <td className="whitespace-nowrap">
-                    {open && r.submitted_at && <ButtonForm action={reopenReview} fields={{ id: paper.id, staff_id: r.staff_id }} label="Let them change it" className="btn-link" />}
+                    {open && r.submitted_at && (
+                      <details>
+                        <summary className="btn-link cursor-pointer">Ask to change</summary>
+                        <ActionForm action={reopenReview} className="mt-2 flex flex-col gap-2">
+                          <input type="hidden" name="id" value={paper.id} />
+                          <input type="hidden" name="staff_id" value={r.staff_id} />
+                          <input name="note" required placeholder="What should they change?" className="input min-w-56" />
+                          <div><Submit className="btn">Send back</Submit></div>
+                        </ActionForm>
+                      </details>
+                    )}
                     {open && !r.submitted_at && <ButtonForm action={removeReviewer} fields={{ id: paper.id, staff_id: r.staff_id }} label="Remove" confirm={`Remove ${r.name} from this paper?`} />}
                   </td>
                 </tr>

@@ -6,9 +6,11 @@ import { Card, Field, PageHeader, Stat, Stats } from "@/components/ui";
 import { appUrl, fetchSummary, leaveCall, managerGet, type AppKey, type Fetched } from "@/lib/apps";
 import { requireSession, type Session } from "@/lib/auth";
 import { databaseUrl } from "@/lib/db";
-import { countToReview, paperCounts } from "@/lib/papers";
+import { allFlags, type PortalFlag } from "@/lib/flags";
+import { countToReview, paperCounts, returnedReviews } from "@/lib/papers";
 import { ActionForm, ButtonForm, Submit } from "@/components/forms";
 import { shareAdminHistory, stopAdminHistory } from "./actions";
+import { markFlagFixed } from "./flag-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +31,23 @@ function Rows({ rows }: { rows: Row[] }) {
           : <Link key={r.href + r.label} href={r.href} className="row-link">{inner}</Link>;
       })}
     </div>
+  );
+}
+
+/** Flagged entries with the Manager's note, a link to the entry, and Mark fixed / Done. */
+function FlagList({ flags, done }: { flags: PortalFlag[]; done: string }) {
+  return (
+    <ul className="grid gap-3">
+      {flags.map((f) => (
+        <li key={`${f.app}-${f.id}`} className="flex flex-wrap items-start justify-between gap-3 text-sm">
+          <div className="min-w-0 flex-1">
+            <a href={f.href} className="btn-link">{f.label}</a>
+            <p className="mt-1" style={{ color: "var(--bad)" }}>{f.note}</p>
+          </div>
+          <ButtonForm action={markFlagFixed} fields={{ app: f.app, id: f.id }} label={done} className="btn" />
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -62,11 +81,28 @@ const monthName = (m: string) => new Date(m + "-01T00:00:00").toLocaleDateString
 
 async function StaffHome({ session, toReview }: { session: Session; toReview: number }) {
   // A teacher with their own login sees their own figures; the shared "staff" login can only open the leave app.
-  const me = session.leaveUserId ? await leaveCall<MyLeave>("/api/portal/me", "staff-data", { uid: session.leaveUserId }) : null;
+  const [me, flags, returned] = await Promise.all([
+    session.leaveUserId ? leaveCall<MyLeave>("/api/portal/me", "staff-data", { uid: session.leaveUserId }) : null,
+    session.leaveUserId ? allFlags() : [],
+    session.staffId && databaseUrl() ? returnedReviews(session.staffId) : [],
+  ]);
+  const sentBack = flags.filter((f) => !f.doneAt && f.target === "staff" && f.targetUserId === session.leaveUserId);
   const left = (k: keyof MyLeave["balance"]) => (me ? me.balance[k] : 0);
   return (
     <>
       <PageHeader title={session.staffId ? `Welcome, ${session.name}` : "Welcome"} />
+      {(sentBack.length > 0 || returned.length > 0) && (
+        <Card className="mb-5" title="Sent back to you">
+          {sentBack.length > 0 && <FlagList flags={sentBack} done="Done" />}
+          {returned.length > 0 && (
+            <div className={sentBack.length ? "mt-3" : ""}>
+              <Rows rows={returned.map((r) => ({
+                href: `/papers/${r.paper_id}`, label: `Question paper · Class ${r.class_code} ${r.subject} ${r.exam} – ${r.return_note}`, note: "Review again →",
+              }))} />
+            </div>
+          )}
+        </Card>
+      )}
       {me && (
         <Card className="mb-5" title="Leave left this year">
           <Stats>
@@ -134,10 +170,16 @@ const ADMIN: { title: string; rows: Row[] }[] = [
   { title: "Question papers", rows: [{ href: "/papers", label: "View & print papers" }] },
 ];
 
-function AdminHome() {
+async function AdminHome() {
+  const toFix = (await allFlags()).filter((f) => !f.doneAt && f.target === "admin");
   return (
     <>
       <PageHeader title="Welcome" subtitle="What would you like to enter?" />
+      {toFix.length > 0 && (
+        <Card className="mb-5" title={<>To fix <span className="badge badge-bad ml-1">{toFix.length}</span></>}>
+          <FlagList flags={toFix} done="Mark fixed" />
+        </Card>
+      )}
       <div className="grid gap-5 md:grid-cols-2">
         {ADMIN.map((g) => <Card key={g.title} title={g.title}><Rows rows={g.rows} /></Card>)}
       </div>
@@ -164,8 +206,8 @@ function Problem({ r }: { r: Fetched<unknown> }) {
 }
 
 async function ManagerHome() {
-  const [office, leave, papers] = await Promise.all([
-    fetchSummary<OfficeSummary>("office"), fetchSummary<LeaveSummary>("leave"), databaseUrl() ? paperCounts() : Promise.resolve(null),
+  const [office, leave, papers, flags] = await Promise.all([
+    fetchSummary<OfficeSummary>("office"), fetchSummary<LeaveSummary>("leave"), databaseUrl() ? paperCounts() : Promise.resolve(null), allFlags(),
   ]);
   const o = office.ok ? office.data : null;
   const l = leave.ok ? leave.data : null;
@@ -186,6 +228,15 @@ async function ManagerHome() {
     ...(waiting > (l?.waiting?.length ?? 0) && l?.waiting?.length ? [{ href: go("leave", "/leave/approvals"), label: `All leave approvals (${waiting})`, external: true }] : []),
     ...(p?.ready ? [{ href: "/papers", label: "Question papers with all reviews in – decide", note: <span className="badge badge-warn">{p.ready}</span> }] : []),
     ...(p?.drafts ? [{ href: "/papers", label: "Question paper drafts not sent yet", note: <span className="badge badge-muted">{p.drafts}</span> }] : []),
+    // What the Manager flagged: still waiting, and what was fixed / done in the last week.
+    ...flags.filter((f) => !f.doneAt).map((f) => ({
+      href: f.href, external: true, label: `${f.label} – ${f.note}`,
+      note: <span className="badge badge-muted">{f.target === "admin" ? "With Admin" : "Sent back"}</span>,
+    })),
+    ...flags.filter((f) => f.doneAt).slice(0, 5).map((f) => ({
+      href: f.href, external: true, label: `${f.label} – ${f.note}`,
+      note: <span className="badge badge-good">{f.target === "admin" ? "Fixed" : `Done${f.doneBy ? ` · ${f.doneBy}` : ""}`}</span>,
+    })),
     ...(l?.overLimit.length ? [{ href: go("leave", "/leave/staff"), label: `Over the leave limit: ${l.overLimit.slice(0, 3).join(", ")}${l.overLimit.length > 3 ? " …" : ""}`, note: <span className="badge badge-bad">{l.overLimit.length}</span>, external: true }] : []),
   ];
 

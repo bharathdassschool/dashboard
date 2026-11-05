@@ -13,6 +13,12 @@ export async function StaffReview({ paper, questions, me }: { paper: Paper; ques
   return (
     <div className="flex flex-col gap-5">
       {paper.note_to_reviewers && <p className="text-sm"><span className="eyebrow mr-2">Note</span>{paper.note_to_reviewers}</p>}
+      {!locked && me.return_note && (
+        <Card>
+          <p className="text-sm" style={{ color: "var(--bad)" }}><strong>Sent back to you:</strong> {me.return_note}</p>
+          <p className="mt-1 text-xs text-muted">Make the changes below and send your decision again.</p>
+        </Card>
+      )}
       {locked && (
         <Card>
           <div className="flex flex-wrap items-center gap-3 text-sm">

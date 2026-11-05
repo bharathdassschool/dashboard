@@ -12,7 +12,7 @@ export type Decision = "" | "approved" | "approved_with_changes" | "disapproved"
 export type Reason = "" | "too_many_changes" | "fundamental";
 export type Reviewer = {
   paper_id: number; staff_id: number; name: string; decision: Decision; reason: Reason; comment: string;
-  saved_at: string | null; submitted_at: string | null;
+  saved_at: string | null; submitted_at: string | null; return_note: string;
 };
 export type QuestionReview = { question_id: number; staff_id: number; verdict: "ok" | "change"; comment: string };
 export type StaffAccount = { id: number; name: string; username: string; classes: string; subjects: string; active: boolean; designation: string; from_leave: boolean; email: string };
@@ -53,7 +53,7 @@ export function getQuestions(paperId: number) {
 
 export function getReviewers(paperId: number) {
   return q<Reviewer>(
-    `SELECT r.paper_id, r.staff_id, s.name, r.decision, r.reason, r.comment, r.saved_at::text, r.submitted_at::text
+    `SELECT r.paper_id, r.staff_id, s.name, r.decision, r.reason, r.comment, r.saved_at::text, r.submitted_at::text, r.return_note
      FROM qp_reviewers r JOIN staff_accounts s ON s.id = r.staff_id WHERE r.paper_id = $1 ORDER BY s.name`,
     [paperId],
   );
@@ -192,4 +192,13 @@ export async function knownSubjects() {
     if (v && !set.has(v.toLowerCase())) set.set(v.toLowerCase(), v);
   }
   return [...set.values()].sort((a, b) => a.localeCompare(b));
+}
+
+/** Reviews the Manager sent back to this teacher with a note, still to be sent again. */
+export function returnedReviews(staffId: number) {
+  return q<{ paper_id: number; class_code: string; subject: string; exam: string; return_note: string }>(
+    `SELECT p.id AS paper_id, p.class_code, p.subject, p.exam, r.return_note FROM qp_reviewers r JOIN qp_papers p ON p.id = r.paper_id
+     WHERE r.staff_id = $1 AND r.submitted_at IS NULL AND r.return_note <> '' AND p.status = 'in_review' ORDER BY p.id`,
+    [staffId],
+  );
 }

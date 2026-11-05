@@ -62,6 +62,8 @@ export const SCHEMA: string[] = [
     submitted_at TIMESTAMPTZ,
     PRIMARY KEY (paper_id, staff_id)
   )`,
+  // The Manager's note when asking a teacher to change a review they already sent; cleared when they send again.
+  `ALTER TABLE qp_reviewers ADD COLUMN IF NOT EXISTS return_note TEXT NOT NULL DEFAULT ''`,
   // Each reviewer's verdict on each question: ok, or change (with what to change).
   `CREATE TABLE IF NOT EXISTS qp_question_reviews (
     question_id INT NOT NULL REFERENCES qp_questions(id) ON DELETE CASCADE,

@@ -258,9 +258,16 @@ export const removeReviewer = action(async (fd) => {
 export const reopenReview = action(async (fd) => {
   await manager();
   const pid = id(fd);
-  await q("UPDATE qp_reviewers SET submitted_at=NULL WHERE paper_id=$1 AND staff_id=$2", [pid, id(fd, "staff_id")]);
+  const sid = id(fd, "staff_id");
+  const note = str(fd, "note", 1000);
+  if (!note) throw new Error("Write what they should change.");
+  const p = await q1<{ class_code: string; subject: string; exam: string }>(
+    `UPDATE qp_reviewers r SET submitted_at=NULL, return_note=$3 FROM qp_papers p
+     WHERE r.paper_id=$1 AND r.staff_id=$2 AND p.id = r.paper_id RETURNING p.class_code, p.subject, p.exam`, [pid, sid, note]);
+  if (!p) throw new Error("That review no longer exists.");
+  sendPush({ staffIds: [sid] }, { title: "Review sent back to you", body: `Class ${p.class_code} ${p.subject} ${p.exam} – ${note}`.trim(), url: `/papers/${pid}` });
   refresh(pid);
-  return "They can change their review again.";
+  return "Sent back – they've been told.";
 });
 
 export const closePaper = action(async (fd) => {
@@ -357,7 +364,8 @@ export const saveReview = action(async (fd) => {
       );
     }
     await c.query(
-      `UPDATE qp_reviewers SET decision=$1, reason=$2, comment=$3, saved_at=now(), submitted_at=CASE WHEN $4 THEN now() ELSE NULL END
+      `UPDATE qp_reviewers SET decision=$1, reason=$2, comment=$3, saved_at=now(), submitted_at=CASE WHEN $4 THEN now() ELSE NULL END,
+         return_note=CASE WHEN $4 THEN '' ELSE return_note END
        WHERE paper_id=$5 AND staff_id=$6`,
       [decision, decision === "disapproved" ? reason : "", comment, submit, pid, me.staffId],
     );

@@ -15,8 +15,8 @@ export function vapidPublicKey() {
   return process.env.VAPID_PUBLIC_KEY ?? "";
 }
 
-/** Who gets it: the Manager's phones, or particular staff (by portal staff id, or by their leave-system login id). */
-export type PushTarget = { role: "manager" } | { staffIds: number[] } | { leaveUserIds: number[] };
+/** Who gets it: the Manager's or Admin's phones, or particular staff (by portal staff id, or by their leave-system login id). */
+export type PushTarget = { role: "manager" | "admin" } | { staffIds: number[] } | { leaveUserIds: number[] };
 export type PushMessage = { title: string; body: string; url: string };
 
 export function sendPush(target: PushTarget, msg: PushMessage) {
