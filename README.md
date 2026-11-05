@@ -50,7 +50,7 @@ To change them, set these in Vercel → this project → Settings → Environmen
    - `PORTAL_SECRET` – the key from step 1
    - `OFFICE_URL` – the office app's address, e.g. `https://bharathdass-internal.vercel.app`
    - `LEAVE_URL` – the leave app's address
-5. In the **office and leave projects** add `PORTAL_SECRET` with **the same value**, then redeploy them.
+5. In the **office and leave projects** add `PORTAL_SECRET` with **the same value**, and `PORTAL_URL` (this portal's web address, for the *← School portal* link in their menu), then redeploy them.
 6. Redeploy the portal, sign in as `manager`, and add the teachers under **Staff logins**.
 
 Without `PORTAL_SECRET` the office and leave apps behave exactly as before; their portal links simply don't exist.
