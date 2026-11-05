@@ -11,6 +11,8 @@ const globalForDb = globalThis as unknown as { pool?: Pool; schemaReady?: Promis
 
 /** Neon on Vercel may expose the connection string under any of these names. */
 export function databaseUrl() {
+  // Switch-over to the Singapore database: set USE_SG_DATABASE=1 in Vercel (no code change).
+  if (process.env.USE_SG_DATABASE === "1" && process.env.SG_DATABASE_URL) return process.env.SG_DATABASE_URL;
   return process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL_UNPOOLED || process.env.POSTGRES_PRISMA_URL || "";
 }
 
