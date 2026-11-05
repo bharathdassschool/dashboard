@@ -95,3 +95,19 @@ export async function managerPost(k: AppKey, path: string, purpose: string, body
     return false;
   }
 }
+
+/** A signed GET from the portal to one app as the Manager; returns the JSON, or null when it can't be reached. */
+export async function managerGet<T>(k: AppKey, path: string, purpose: string): Promise<T | null> {
+  const base = appUrl(k);
+  if (!base) return null;
+  try {
+    const res = await fetch(`${base}${path}`, {
+      headers: { Authorization: `Bearer ${await appToken(k, "manager", purpose)}` },
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+    return res.ok ? ((await res.json()) as T) : null;
+  } catch {
+    return null;
+  }
+}

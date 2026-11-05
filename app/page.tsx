@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { Shell } from "@/components/Shell";
-import { Card, PageHeader, Stat, Stats } from "@/components/ui";
-import { appUrl, fetchSummary, leaveCall, type AppKey, type Fetched } from "@/lib/apps";
+import { Card, Field, PageHeader, Stat, Stats } from "@/components/ui";
+import { appUrl, fetchSummary, leaveCall, managerGet, type AppKey, type Fetched } from "@/lib/apps";
 import { requireSession, type Session } from "@/lib/auth";
 import { databaseUrl } from "@/lib/db";
 import { countToReview, paperCounts } from "@/lib/papers";
-import { ButtonForm } from "@/components/forms";
-import { setAdminHistory } from "./actions";
+import { ActionForm, ButtonForm, Submit } from "@/components/forms";
+import { shareAdminHistory, stopAdminHistory } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -145,7 +145,6 @@ function AdminHome() {
 /* ---------------- Manager: everything ---------------- */
 
 type OfficeSummary = {
-  adminHistoryUntil?: string | null;
   excursion: { due: number; collected: number; outstanding: number; unpaidStudents: number };
   trips: { income: number; expense: number; net: number };
   shops: { slug: string; name: string; todayRevenue: number; monthRevenue: number; monthNet: number; allTimeNet: number }[];
@@ -235,7 +234,7 @@ async function ManagerHome() {
           ]} />
         </Card>
         <Card title="Admin's history">
-          <AdminHistory until={o?.adminHistoryUntil ?? null} />
+          <AdminHistory />
         </Card>
         <Card title="Settings">
           <Rows rows={[
@@ -249,24 +248,33 @@ async function ManagerHome() {
   );
 }
 
-/** Admin normally sees one week of entries; the Manager can open the full history for a while to reconcile something. */
-function AdminHistory({ until }: { until: string | null }) {
-  const open = until && new Date(until).getTime() > Date.now();
+/**
+ * Admin normally sees one week of entries. The Manager can share older history (from a chosen date) until a chosen day,
+ * e.g. to reconcile something; Admin isn't told and has no option of their own.
+ */
+async function AdminHistory() {
+  const now = await managerGet<{ share: { from: string; until: string } | null }>("office", "/api/portal/admin-history", "admin-history");
+  const share = now?.share ?? null;
+  const ist = (d: Date) => new Date(d.getTime() + 5.5 * 3600_000).toISOString().slice(0, 10);
+  const today = ist(new Date());
+  const monthAgo = ist(new Date(Date.now() - 30 * 86400_000));
+  const nice = (iso: string) => new Date(iso.length === 10 ? iso + "T12:00:00Z" : iso).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric" });
+  if (share) {
+    return (
+      <div className="text-sm">
+        <p className="mb-3">Admin can see entries from <strong>{nice(share.from)}</strong>, until the end of <strong>{nice(share.until)}</strong>.</p>
+        <ButtonForm action={stopAdminHistory} fields={{}} label="Stop sharing now" className="btn" />
+      </div>
+    );
+  }
   return (
     <div className="text-sm">
-      <p className="mb-3">
-        {open
-          ? <>Admin can see the <strong>full history</strong> until {new Date(until!).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}.</>
-          : <>Admin sees entries from the <strong>last 7 days</strong> only.</>}
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {open
-          ? <ButtonForm action={setAdminHistory} fields={{ days: 0 }} label="Back to 7 days" className="btn" />
-          : <>
-              <ButtonForm action={setAdminHistory} fields={{ days: 1 }} label="Open full history for 1 day" className="btn" />
-              <ButtonForm action={setAdminHistory} fields={{ days: 7 }} label="For 7 days" className="btn" />
-            </>}
-      </div>
+      <p className="mb-3 text-muted">Admin sees the last 7 days. To let them check older entries, share them for a while:</p>
+      <ActionForm action={shareAdminHistory} className="grid gap-3 sm:grid-cols-2">
+        <Field label="Show entries from"><input type="date" name="from" required defaultValue={monthAgo} max={today} /></Field>
+        <Field label="Until (last day)"><input type="date" name="until" required defaultValue={today} min={today} /></Field>
+        <div className="sm:col-span-2"><Submit className="btn">Share with Admin</Submit></div>
+      </ActionForm>
     </div>
   );
 }
