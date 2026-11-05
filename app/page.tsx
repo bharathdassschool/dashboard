@@ -150,6 +150,7 @@ type OfficeSummary = {
 };
 type LeaveSummary = {
   waitingApprover1: number; waitingApprover2: number; staff: number; overLimit: string[];
+  waiting?: { id: number; name: string; type: string; from: string; to: string; days: number; staffType: string; classes: string; subjects: string; stage: number }[];
   onLeaveToday: { name: string; type: string; status: string }[];
 };
 
@@ -169,7 +170,15 @@ async function ManagerHome() {
 
   // Only what needs the Manager – everything else runs on its own.
   const attention: Row[] = [
-    ...(waiting ? [{ href: go("leave", "/leave/approvals"), label: "Leave waiting for approval", note: <span className="badge badge-warn">{waiting}</span>, external: true }] : []),
+    // Each leave request on its own line – who, when, what they teach – straight to that request.
+    ...(l?.waiting?.length
+      ? l.waiting.map((w) => ({
+          href: go("leave", `/leave/requests/${w.id}`), external: true,
+          label: `${w.name} · ${w.type.replace(" Leave", "")} leave · ${day(w.from)}${w.to !== w.from ? ` – ${day(w.to)}` : ""} (${w.days} day${w.days === 1 ? "" : "s"})${w.classes || w.subjects ? ` · ${[w.classes, w.subjects].filter(Boolean).join(" · ")}` : ""}`,
+          note: <span className="badge badge-warn">{w.stage === 1 ? "Approval 1" : "Approval 2"}</span>,
+        }))
+      : waiting ? [{ href: go("leave", "/leave/approvals"), label: "Leave waiting for approval", note: <span className="badge badge-warn">{waiting}</span>, external: true }] : []),
+    ...(waiting > (l?.waiting?.length ?? 0) && l?.waiting?.length ? [{ href: go("leave", "/leave/approvals"), label: `All leave approvals (${waiting})`, external: true }] : []),
     ...(p?.ready ? [{ href: "/papers", label: "Question papers with all reviews in – decide", note: <span className="badge badge-warn">{p.ready}</span> }] : []),
     ...(p?.drafts ? [{ href: "/papers", label: "Question paper drafts not sent yet", note: <span className="badge badge-muted">{p.drafts}</span> }] : []),
     ...(l?.overLimit.length ? [{ href: go("leave", "/leave/staff"), label: `Over the leave limit: ${l.overLimit.slice(0, 3).join(", ")}${l.overLimit.length > 3 ? " …" : ""}`, note: <span className="badge badge-bad">{l.overLimit.length}</span>, external: true }] : []),
