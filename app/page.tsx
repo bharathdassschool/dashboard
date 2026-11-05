@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { PushToggle } from "@/components/PushToggle";
 import { Shell } from "@/components/Shell";
+import { pushEnabled, vapidPublicKey } from "@/lib/push";
 import { Card, Field, PageHeader, Stat, Stats } from "@/components/ui";
 import { appUrl, fetchSummary, leaveCall, managerGet, type AppKey, type Fetched } from "@/lib/apps";
 import { requireSession, type Session } from "@/lib/auth";
@@ -36,6 +38,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
   const toReview = session.staffId && databaseUrl() ? await countToReview(session.staffId) : 0;
   return (
     <Shell session={session} toReview={toReview}>
+      {pushEnabled() && (session.role !== "staff" || session.staffId) && <PushToggle publicKey={vapidPublicKey()} />}
       {missing && <p className="mb-6 text-sm text-warn">That app isn&apos;t connected yet – its address is missing in Vercel.</p>}
       {session.role === "manager" ? <ManagerHome /> : session.role === "admin" ? <AdminHome /> : <StaffHome session={session} toReview={toReview} />}
     </Shell>

@@ -70,4 +70,16 @@ export const SCHEMA: string[] = [
     comment TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (question_id, staff_id)
   )`,
+
+  // ---------- Phone notifications ----------
+  // One row per phone (or browser) that turned notifications on. role + staff_id say whose phone it is.
+  `CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id SERIAL PRIMARY KEY,
+    endpoint TEXT NOT NULL UNIQUE,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    role TEXT NOT NULL,
+    staff_id INT REFERENCES staff_accounts(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
 ];

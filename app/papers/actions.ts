@@ -8,6 +8,7 @@ import { q, q1, tx } from "@/lib/db";
 import { id, ids, str } from "@/lib/forms";
 import { syncStaffFromLeave } from "@/lib/staffSync";
 import { managerEmails, sendMail } from "@/lib/mail";
+import { sendPush } from "@/lib/push";
 import {
   currentAcademicYear, detectDetails, docxText, pdfText, getPaper, getQuestions, getStaffAccounts, matchesPaper, parseQuestions, type Decision, type Reason,
 } from "@/lib/papers";
@@ -366,6 +367,7 @@ export const saveReview = action(async (fd) => {
     // Last review in: the Manager can decide.
     const left = await q1<{ n: number }>("SELECT COUNT(*)::int AS n FROM qp_reviewers WHERE paper_id = $1 AND submitted_at IS NULL", [pid]);
     if (left?.n === 0) {
+      sendPush({ role: "manager" }, { title: "All reviews in", body: `Class ${p.class_code} ${p.subject} ${p.exam} – ready for your decision`.trim(), url: `/papers/${pid}` });
       sendMail({
         to: managerEmails(),
         subject: `All reviews in: Class ${p.class_code} ${p.subject} ${p.exam}`.trim(),
@@ -389,6 +391,7 @@ async function notifyReviewers(paperId: number, staffIds: number[]) {
   if (!staffIds.length) return;
   const p = await getPaper(paperId);
   if (!p) return;
+  sendPush({ staffIds }, { title: "Question paper to review", body: `Class ${p.class_code} ${p.subject} ${p.exam}`.trim(), url: `/papers/${paperId}` });
   const people = await q<{ name: string; email: string }>("SELECT name, email FROM staff_accounts WHERE id = ANY($1::int[]) AND active AND email <> ''", [staffIds]);
   for (const r of people) {
     sendMail({
