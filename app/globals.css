@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --border: #e3e6eb;
+  --text: #1b1f24;
+  --muted: #5f6b7a;
+  --primary: #1d4ed8;
+  --primary-fg: #ffffff;
+  --good: #15803d;
+  --bad: #b91c1c;
+  --warn: #b45309;
+  --good-bg: #dcfce7;
+  --warn-bg: #fef3c7;
+  --bad-bg: #fee2e2;
+  --muted-bg: #eef0f3;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1216;
+    --surface: #171b21;
+    --border: #2a313a;
+    --text: #e7eaee;
+    --muted: #96a1ae;
+    --primary: #5b8def;
+    --primary-fg: #0b0e12;
+    --good: #4ade80;
+    --bad: #f87171;
+    --warn: #fbbf24;
+    --good-bg: #12301d;
+    --warn-bg: #36290b;
+    --bad-bg: #3b1515;
+    --muted-bg: #222830;
+  }
+}
+
+@theme inline {
+  --color-muted: var(--muted);
+  --color-good: var(--good);
+  --color-bad: var(--bad);
+  --color-warn: var(--warn);
+  --color-primary: var(--primary);
+}
+
+body { background: var(--bg); color: var(--text); }
+
+@layer components {
+  .card { @apply rounded-xl border p-4; background: var(--surface); border-color: var(--border); }
+  .btn-primary { @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-60; background: var(--primary); color: var(--primary-fg); }
+  .btn { @apply inline-flex items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium; border-color: var(--border); background: var(--surface); }
+  .btn:hover { background: var(--muted-bg); }
+  .btn-link { @apply text-sm font-medium underline-offset-2 hover:underline; color: var(--primary); }
+  .btn-link-danger { @apply text-sm font-medium underline-offset-2 hover:underline; color: var(--bad); }
+  .field { @apply flex flex-col gap-1 text-sm; }
+  .field > span { @apply font-medium; color: var(--muted); }
+  .input, .field input, .field select, .field textarea {
+    @apply w-full rounded-lg border px-3 py-2 text-sm outline-none;
+    background: var(--surface); border-color: var(--border); color: var(--text);
+  }
+  .field input:focus, .field select:focus, .input:focus { border-color: var(--primary); }
+  .msg-error { @apply mt-2 text-sm; color: var(--bad); }
+  .msg-ok { @apply mt-2 text-sm; color: var(--good); }
+  .badge { @apply inline-block rounded-full px-2 py-0.5 text-xs font-medium; }
+  .badge-good { background: var(--good-bg); color: var(--good); }
+  .badge-warn { background: var(--warn-bg); color: var(--warn); }
+  .badge-bad { background: var(--bad-bg); color: var(--bad); }
+  .badge-muted { background: var(--muted-bg); color: var(--muted); }
+  .tab { @apply rounded-lg px-3 py-1.5 text-sm font-medium; color: var(--muted); }
+  .tab:hover { background: var(--muted-bg); }
+  .tab-active { background: var(--muted-bg); color: var(--text); }
+  .table-wrap { @apply -mx-4 overflow-x-auto px-4; }
+  table.data { @apply w-full border-collapse text-sm; }
+  table.data th { @apply whitespace-nowrap border-b px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide; border-color: var(--border); color: var(--muted); }
+  table.data td { @apply border-b px-2 py-2 align-top; border-color: var(--border); }
+  table.data tr:hover td { background: var(--muted-bg); }
+  table.data td.num, table.data th.num { @apply text-right tabular-nums whitespace-nowrap; }
+  table.data tfoot td { @apply font-semibold; }
+  .nav-group { border-top: 1px solid var(--border); }
+  .nav-heading { @apply mb-1.5 flex items-center gap-2 px-3 text-[0.95rem] font-bold; color: var(--text); }
+  .nav-heading > span { @apply inline-flex h-6 w-6 items-center justify-center rounded-md text-xs; background: var(--muted-bg); }
+  .nav-sub { @apply ml-6 flex flex-col gap-0.5 border-l pl-2; border-color: var(--border); }
+  .nav-link { @apply block rounded-lg px-3 py-1.5 text-sm; color: var(--muted); }
+  .nav-link:hover { background: var(--muted-bg); color: var(--text); }
+  .nav-link-active { @apply font-semibold; background: var(--muted-bg); color: var(--primary); }
+}
