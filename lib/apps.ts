@@ -2,19 +2,18 @@ import "server-only";
 import { SignJWT } from "jose";
 import { portalSecret } from "./auth";
 
-export type AppKey = "office" | "leave" | "papers";
+export type AppKey = "office" | "leave";
 
 export const APPS: Record<AppKey, { name: string; env: string }> = {
   office: { name: "Office (fees, shops, staff tours)", env: "OFFICE_URL" },
   leave: { name: "Staff leave & payslips", env: "LEAVE_URL" },
-  papers: { name: "Question papers", env: "PAPERS_URL" },
 };
 
 export function isApp(k: string): k is AppKey {
   return k in APPS;
 }
 
-/** The app's web address from OFFICE_URL / LEAVE_URL / PAPERS_URL, or null when not set yet. */
+/** The app's web address from OFFICE_URL / LEAVE_URL, or null when not set yet. */
 export function appUrl(k: AppKey) {
   const u = process.env[APPS[k].env]?.trim().replace(/\/+$/, "");
   return u && /^https?:\/\//.test(u) ? u : null;

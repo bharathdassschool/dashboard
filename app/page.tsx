@@ -1,7 +1,10 @@
+import Link from "next/link";
+import { DbMissing, Shell } from "@/components/Shell";
 import { Card, PageHeader, Stat } from "@/components/ui";
 import { appUrl, fetchSummary, type AppKey, type Fetched } from "@/lib/apps";
-import { requireRole, ROLE_LABEL } from "@/lib/auth";
-import { logout } from "./login/actions";
+import { requireSession, type Session } from "@/lib/auth";
+import { databaseUrl } from "@/lib/db";
+import { countToReview, paperCounts } from "@/lib/papers";
 
 export const dynamic = "force-dynamic";
 
@@ -12,34 +15,31 @@ type Link = { app: AppKey; to: string; label: string; primary?: boolean };
 const go = (l: Link) => `/go/${l.app}?to=${encodeURIComponent(l.to)}`;
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ missing?: string }> }) {
-  const role = await requireRole();
+  const session = await requireSession();
   const { missing } = await searchParams;
+  const toReview = session.staffId && databaseUrl() ? await countToReview(session.staffId) : 0;
   return (
-    <div className="mx-auto max-w-[1200px] px-4 py-6 lg:px-8">
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b pb-4" style={{ borderColor: "var(--border)" }}>
-        <div>
-          <div className="font-semibold">Bharath Dass School</div>
-          <div className="text-xs text-muted">School portal</div>
-        </div>
-        <div className="flex items-center gap-3 text-sm">
-          <span className="badge badge-muted">{ROLE_LABEL[role]}</span>
-          <form action={logout}><button className="btn-link" type="submit">Sign out</button></form>
-        </div>
-      </header>
+    <Shell session={session} toReview={toReview}>
       {missing && <p className="card mb-6 text-sm text-warn">That app isn&apos;t connected to the portal yet (its web address is missing in Vercel).</p>}
-      {role === "manager" ? <ManagerHome /> : role === "admin" ? <AdminHome /> : <StaffHome />}
-    </div>
+      {session.role === "manager" ? <ManagerHome /> : session.role === "admin" ? <AdminHome /> : <StaffHome session={session} toReview={toReview} />}
+    </Shell>
   );
 }
 
 /* ---------------- Staff: apply for leave and see their balance ---------------- */
 
-function StaffHome() {
+function StaffHome({ session, toReview }: { session: Session; toReview: number }) {
   const leave = appUrl("leave");
   return (
     <>
-      <PageHeader title="Welcome" subtitle="Apply for leave and check how much leave you have left." />
-      <div className="grid gap-4 sm:grid-cols-2">
+      <PageHeader title={session.staffId ? `Welcome, ${session.name}` : "Welcome"} subtitle="Apply for leave, check your leave balance and review question papers." />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {session.staffId && (
+          <Link className="card hover:opacity-90" href="/papers">
+            <div className="text-lg font-semibold">📝 Question papers {toReview > 0 && <span className="badge badge-warn ml-1 align-middle">{toReview} to review</span>}</div>
+            <p className="mt-1 text-sm text-muted">{toReview ? "Papers are waiting for your review." : "Nothing waiting – papers sent to you will appear here."}</p>
+          </Link>
+        )}
         <a className="card hover:opacity-90" href={go({ app: "leave", to: "/leave/apply", label: "" })}>
           <div className="text-lg font-semibold">🗓 Apply for leave</div>
           <p className="mt-1 text-sm text-muted">Shows your balance before and after the leave.</p>
@@ -52,6 +52,7 @@ function StaffHome() {
       <p className="mt-4 text-sm text-muted">
         The first time, the leave page asks you to sign in with <strong>your own staff login</strong> (not the shared one).
         {!leave && " The leave app isn't connected yet."}
+        {!session.staffId && " To review question papers, sign in with the personal login the Manager gave you."}
       </p>
     </>
   );
@@ -82,10 +83,6 @@ const ADMIN_GROUPS: { title: string; icon: string; links: Link[] }[] = [
   { title: "Payslips", icon: "₹", links: [
     { app: "leave", to: "/payslips", label: "Upload payslips", primary: true },
   ] },
-  { title: "Question papers", icon: "📝", links: [
-    { app: "papers", to: "/", label: "Classes & subjects", primary: true },
-    { app: "papers", to: "/papers", label: "Generated papers" },
-  ] },
 ];
 
 function AdminHome() {
@@ -93,6 +90,9 @@ function AdminHome() {
     <>
       <PageHeader title="Welcome, Admin" subtitle="Pick what you want to enter. Each button opens the right page, already signed in." />
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <Card title={<><span aria-hidden>📝</span> Question papers</>}>
+          <div className="flex flex-wrap gap-2"><Link href="/papers" className="btn-primary">View & print papers</Link></div>
+        </Card>
         {ADMIN_GROUPS.map((g) => (
           <Card key={g.title} title={<><span aria-hidden>{g.icon}</span> {g.title}</>}>
             <div className="flex flex-wrap gap-2">
@@ -117,10 +117,6 @@ type LeaveSummary = {
   waitingApprover1: number; waitingApprover2: number; staff: number; overLimit: string[];
   onLeaveToday: { name: string; type: string; status: string }[];
 };
-type PapersSummary = {
-  subjects: number; papers: number; papersThisMonth: number;
-  recent: { id: number; class_code: string; subject: string; exam: string; created_by: string; created_at: string }[];
-};
 
 function Problem({ r }: { r: Fetched<unknown> }) {
   return r.ok ? null : <p className="text-sm text-warn">{r.error}</p>;
@@ -128,11 +124,11 @@ function Problem({ r }: { r: Fetched<unknown> }) {
 
 async function ManagerHome() {
   const [office, leave, papers] = await Promise.all([
-    fetchSummary<OfficeSummary>("office"), fetchSummary<LeaveSummary>("leave"), fetchSummary<PapersSummary>("papers"),
+    fetchSummary<OfficeSummary>("office"), fetchSummary<LeaveSummary>("leave"), databaseUrl() ? paperCounts() : Promise.resolve(null),
   ]);
   const o = office.ok ? office.data : null;
   const l = leave.ok ? leave.data : null;
-  const p = papers.ok ? papers.data : null;
+  const p = papers;
   const shopMonthNet = o ? o.shops.reduce((a, s) => a + s.monthNet, 0) : 0;
   const waiting = l ? l.waitingApprover1 + l.waitingApprover2 : 0;
   return (
@@ -218,27 +214,19 @@ async function ManagerHome() {
           ))}
         </Card>
 
-        <Card title="📝 Question papers" actions={<a className="btn-link" href={go({ app: "papers", to: "/", label: "" })}>Open →</a>}>
-          <Problem r={papers} />
-          {p && (
-            <>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <Stat label="Subjects" value={p.subjects} />
-                <Stat label="Papers generated" value={p.papers} />
-                <Stat label="This month" value={p.papersThisMonth} />
-              </div>
-              {p.recent.length > 0 && (
-                <ul className="mt-4 flex flex-col gap-1 text-sm">
-                  {p.recent.map((r) => (
-                    <li key={r.id} className="flex justify-between gap-2">
-                      <a className="btn-link" href={go({ app: "papers", to: `/paper/${r.id}`, label: "" })}>{r.class_code} · {r.subject} · {r.exam}</a>
-                      <span className="text-muted">{r.created_by}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
+        <Card title="📝 Question papers" actions={<Link className="btn-link" href="/papers">Open →</Link>}>
+          {!p ? <DbMissing /> : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Stat label="Drafts" value={p.drafts} />
+              <Stat label="In review" value={p.in_review} hint={`${p.waiting} reviews still to come`} />
+              <Stat label="Changes / disapproved" value={p.flagged} tone={p.flagged ? "warn" : undefined} />
+              <Stat label="Final" value={p.final} tone={p.final ? "good" : undefined} />
+            </div>
           )}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link className="btn-primary" href="/papers/new">Upload a paper</Link>
+            <Link className="btn" href="/staff">Staff logins</Link>
+          </div>
         </Card>
 
         <Card title="⚙ Users & settings">
@@ -247,7 +235,7 @@ async function ManagerHome() {
             <a className="btn" href={go({ app: "office", to: "/admin/import", label: "" })}>Office: import from Excel</a>
             <a className="btn" href={go({ app: "leave", to: "/admin/users", label: "" })}>Leave users</a>
             <a className="btn" href={go({ app: "leave", to: "/leave/rules", label: "" })}>Leave rules</a>
-            <a className="btn" href={go({ app: "papers", to: "/admin/users", label: "" })}>Question-paper users</a>
+            <Link className="btn" href="/staff">Staff logins (question papers)</Link>
           </div>
         </Card>
       </div>

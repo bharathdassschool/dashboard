@@ -5,9 +5,9 @@ import { action } from "@/lib/action";
 import { checkLogin, endSession, startSession } from "@/lib/auth";
 
 export const login = action(async (fd) => {
-  const role = checkLogin(String(fd.get("username") ?? ""), String(fd.get("password") ?? ""));
-  if (!role) throw new Error("Wrong username or password.");
-  await startSession(role);
+  const session = await checkLogin(String(fd.get("username") ?? ""), String(fd.get("password") ?? ""));
+  if (!session) throw new Error("Wrong username or password.");
+  await startSession(session);
   redirect("/");
 });
 

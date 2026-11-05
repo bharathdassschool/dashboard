@@ -84,3 +84,10 @@ body { background: var(--bg); color: var(--text); }
   .nav-link:hover { background: var(--muted-bg); color: var(--text); }
   .nav-link-active { @apply font-semibold; background: var(--muted-bg); color: var(--primary); }
 }
+
+/* Question papers: print only the paper itself, in black on white. */
+@media print {
+  @page { margin: 14mm; }
+  body { background: #fff !important; color: #000 !important; }
+  .paper-sheet { font-size: 12pt; color: #000; }
+}
