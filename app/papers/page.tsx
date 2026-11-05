@@ -8,7 +8,7 @@ import { countToReview, listMyPapers, listPapers, paperTitle } from "@/lib/paper
 
 export const dynamic = "force-dynamic";
 
-const date = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—");
+const date = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric" }) : "—");
 
 export default async function PapersPage() {
   const session = await requireSession();

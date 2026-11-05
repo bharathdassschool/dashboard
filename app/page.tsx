@@ -5,6 +5,8 @@ import { appUrl, fetchSummary, leaveCall, type AppKey, type Fetched } from "@/li
 import { requireSession, type Session } from "@/lib/auth";
 import { databaseUrl } from "@/lib/db";
 import { countToReview, paperCounts } from "@/lib/papers";
+import { ButtonForm } from "@/components/forms";
+import { setAdminHistory } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -52,8 +54,8 @@ type MyLeave = {
   payslips: { id: number; month: string }[];
 };
 
-const day = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" });
-const monthName = (m: string) => new Date(m + "-01T00:00:00").toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+const day = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short" });
+const monthName = (m: string) => new Date(m + "-01T00:00:00").toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", month: "long", year: "numeric" });
 
 async function StaffHome({ session, toReview }: { session: Session; toReview: number }) {
   // A teacher with their own login sees their own figures; the shared "staff" login can only open the leave app.
@@ -143,6 +145,7 @@ function AdminHome() {
 /* ---------------- Manager: everything ---------------- */
 
 type OfficeSummary = {
+  adminHistoryUntil?: string | null;
   excursion: { due: number; collected: number; outstanding: number; unpaidStudents: number };
   trips: { income: number; expense: number; net: number };
   shops: { slug: string; name: string; todayRevenue: number; monthRevenue: number; monthNet: number; allTimeNet: number }[];
@@ -231,6 +234,9 @@ async function ManagerHome() {
             { href: "/papers", label: "All papers", note: p ? `${p.in_review} in review · ${p.final} final` : undefined },
           ]} />
         </Card>
+        <Card title="Admin's history">
+          <AdminHistory until={o?.adminHistoryUntil ?? null} />
+        </Card>
         <Card title="Settings">
           <Rows rows={[
             { href: "/staff", label: "Staff & subjects", note: "who reviews which papers" },
@@ -240,5 +246,27 @@ async function ManagerHome() {
         </Card>
       </div>
     </>
+  );
+}
+
+/** Admin normally sees one week of entries; the Manager can open the full history for a while to reconcile something. */
+function AdminHistory({ until }: { until: string | null }) {
+  const open = until && new Date(until).getTime() > Date.now();
+  return (
+    <div className="text-sm">
+      <p className="mb-3">
+        {open
+          ? <>Admin can see the <strong>full history</strong> until {new Date(until!).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}.</>
+          : <>Admin sees entries from the <strong>last 7 days</strong> only.</>}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {open
+          ? <ButtonForm action={setAdminHistory} fields={{ days: 0 }} label="Back to 7 days" className="btn" />
+          : <>
+              <ButtonForm action={setAdminHistory} fields={{ days: 1 }} label="Open full history for 1 day" className="btn" />
+              <ButtonForm action={setAdminHistory} fields={{ days: 7 }} label="For 7 days" className="btn" />
+            </>}
+      </div>
+    </div>
   );
 }

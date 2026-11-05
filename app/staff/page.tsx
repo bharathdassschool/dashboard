@@ -24,6 +24,11 @@ export default async function StaffPage() {
           ? "Couldn't reach the leave system just now – showing the list from last time."
           : `${synced} staff from the leave system. They sign in here with their leave login. Question papers go to teachers by the subjects and classes below.`}
       />
+      <p className="mb-5 text-sm">
+        <strong>{staff.filter((s) => s.email).length} of {staff.length}</strong> have an email address for notifications.
+        {teachers.some((s) => !s.email) && <> Teachers without one: {teachers.filter((s) => !s.email).map((s) => s.name).join(", ")}.</>}
+        <span className="text-muted"> Emails are kept in the leave system (Staff &amp; balances).</span>
+      </p>
       <Card title={`Teachers · ${teachers.length}`} className="mb-5">
         {teachers.length === 0 ? <Empty>No subjects yet – they fill in as teachers apply for leave, or add them below.</Empty> : <StaffRows rows={teachers} />}
       </Card>

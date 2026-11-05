@@ -1,0 +1,23 @@
+# Runs on every update: the app must type-check, pass its tests and build.
+# A red cross on the commit (and an email from GitHub) means something broke before staff see it.
+name: Check
+on:
+  push:
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Type-check
+        run: npm run lint
+      - name: Tests (fee, leave and paper calculations)
+        run: npm test
+      - name: Build
+        run: npm run build

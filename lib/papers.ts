@@ -15,7 +15,7 @@ export type Reviewer = {
   saved_at: string | null; submitted_at: string | null;
 };
 export type QuestionReview = { question_id: number; staff_id: number; verdict: "ok" | "change"; comment: string };
-export type StaffAccount = { id: number; name: string; username: string; classes: string; subjects: string; active: boolean; designation: string; from_leave: boolean };
+export type StaffAccount = { id: number; name: string; username: string; classes: string; subjects: string; active: boolean; designation: string; from_leave: boolean; email: string };
 
 export const DECISION_LABEL: Record<Exclude<Decision, "">, string> = {
   approved: "Approved",
@@ -105,7 +105,7 @@ export async function countToReview(staffId: number) {
 }
 
 export function getStaffAccounts(opts: { activeOnly?: boolean } = {}) {
-  return q<StaffAccount>(`SELECT id, name, username, classes, subjects, active, designation, (leave_user_id IS NOT NULL) AS from_leave FROM staff_accounts ${opts.activeOnly ? "WHERE active" : ""} ORDER BY active DESC, lower(name)`);
+  return q<StaffAccount>(`SELECT id, name, username, classes, subjects, active, designation, email, (leave_user_id IS NOT NULL) AS from_leave FROM staff_accounts ${opts.activeOnly ? "WHERE active" : ""} ORDER BY active DESC, lower(name)`);
 }
 
 /** Splits "VIII A, IX; Science / Maths" style lists into lowercase tokens for matching. */

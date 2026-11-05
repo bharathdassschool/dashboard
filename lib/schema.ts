@@ -15,6 +15,7 @@ export const SCHEMA: string[] = [
   // Staff come from the leave system: same login, and their classes and subjects route question papers to them.
   `ALTER TABLE staff_accounts ADD COLUMN IF NOT EXISTS leave_user_id INT UNIQUE`,
   `ALTER TABLE staff_accounts ADD COLUMN IF NOT EXISTS designation TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE staff_accounts ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''`,
 
   // ---------- Question papers (made in Claude, uploaded by the Manager, reviewed by staff) ----------
   // status: draft (Manager still checking) → in_review (sent to reviewers) → closed (Manager finished it).

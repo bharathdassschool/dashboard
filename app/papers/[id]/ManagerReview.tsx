@@ -8,7 +8,7 @@ import {
 } from "@/lib/papers";
 import { addReviewers, closePaper, makeRevision, removeReviewer, reopenPaper, reopenReview } from "../actions";
 
-const when = (s: string | null) => (s ? new Date(s).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "");
+const when = (s: string | null) => (s ? new Date(s).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "");
 
 /** Manager, after sending: every teacher's decision and their notes on each question; finish or revise the paper. */
 export async function ManagerReview({ paper, questions }: { paper: Paper; questions: Question[] }) {

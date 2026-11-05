@@ -77,3 +77,21 @@ export async function leaveCall<T>(path: string, purpose: string, opts: { body?:
     return null;
   }
 }
+
+/** A signed POST from the portal to one app as the Manager (e.g. opening Admin's history). Returns ok or not. */
+export async function managerPost(k: AppKey, path: string, purpose: string, body: unknown): Promise<boolean> {
+  const base = appUrl(k);
+  if (!base) return false;
+  try {
+    const res = await fetch(`${base}${path}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${await appToken(k, "manager", purpose)}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}

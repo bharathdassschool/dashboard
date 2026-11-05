@@ -7,6 +7,7 @@ import { requireActor } from "@/lib/auth";
 import { q, q1, tx } from "@/lib/db";
 import { id, ids, str } from "@/lib/forms";
 import { syncStaffFromLeave } from "@/lib/staffSync";
+import { managerEmails, sendMail } from "@/lib/mail";
 import {
   currentAcademicYear, detectDetails, docxText, pdfText, getPaper, getQuestions, getStaffAccounts, matchesPaper, parseQuestions, type Decision, type Reason,
 } from "@/lib/papers";
@@ -111,6 +112,7 @@ export const createPaper = action(async (fd) => {
   });
   refresh();
   const sent = sendNow && reviewers.length && (await getPaper(paperId))?.status === "in_review";
+  if (sent) await notifyReviewers(paperId, reviewers);
   redirect(`/papers/${paperId}?${sent ? "sent" : sendNow ? "nosend" : "new"}=1`);
 });
 
@@ -214,6 +216,7 @@ export const sendForReview = action(async (fd) => {
     for (const s of reviewers) await c.query("INSERT INTO qp_reviewers (paper_id, staff_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [pid, s]);
     await c.query("UPDATE qp_papers SET status='in_review', sent_at=now() WHERE id=$1", [pid]);
   });
+  await notifyReviewers(pid, reviewers);
   refresh(pid);
   return `Sent to ${reviewers.length} reviewer${reviewers.length > 1 ? "s" : ""}.`;
 });
@@ -233,6 +236,7 @@ export const addReviewers = action(async (fd) => {
   const add = ids(fd, "reviewer");
   if (!add.length) throw new Error("Tick someone to add.");
   for (const s of add) await q("INSERT INTO qp_reviewers (paper_id, staff_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [pid, s]);
+  await notifyReviewers(pid, add);
   refresh(pid);
   return "Added.";
 });
@@ -358,6 +362,46 @@ export const saveReview = action(async (fd) => {
     );
   });
   refresh(pid);
+  if (submit) {
+    // Last review in: the Manager can decide.
+    const left = await q1<{ n: number }>("SELECT COUNT(*)::int AS n FROM qp_reviewers WHERE paper_id = $1 AND submitted_at IS NULL", [pid]);
+    if (left?.n === 0) {
+      sendMail({
+        to: managerEmails(),
+        subject: `All reviews in: Class ${p.class_code} ${p.subject} ${p.exam}`.trim(),
+        text: `Every teacher has reviewed the Class ${p.class_code} ${p.subject} ${p.exam} paper. Open it to mark it final, make a revised version, or reject it.`,
+        link: portalLink(`/papers/${pid}`),
+      });
+    }
+  }
   if (!submit) return "Saved – you can finish later.";
   return decision === "approved" ? "Approved. Thank you!" : decision === "approved_with_changes" ? `Approved with ${changes.length} change${changes.length > 1 ? "s" : ""}. Thank you!` : "Disapproval sent to the Manager.";
 });
+
+/** The portal's own address for links in emails: PORTAL_URL, or the Vercel production address. */
+function portalLink(path: string) {
+  const base = (process.env.PORTAL_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "")).replace(/\/+$/, "");
+  return base ? base + path : undefined;
+}
+
+/** Each teacher a paper was just sent to gets an email with a link straight to it. */
+async function notifyReviewers(paperId: number, staffIds: number[]) {
+  if (!staffIds.length) return;
+  const p = await getPaper(paperId);
+  if (!p) return;
+  const people = await q<{ name: string; email: string }>("SELECT name, email FROM staff_accounts WHERE id = ANY($1::int[]) AND active AND email <> ''", [staffIds]);
+  for (const r of people) {
+    sendMail({
+      to: r.email,
+      subject: `Question paper to review: Class ${p.class_code} ${p.subject} ${p.exam}`.trim(),
+      text: [
+        `Dear ${r.name},`,
+        "",
+        `The Class ${p.class_code} ${p.subject} ${p.exam} question paper is ready for your review.`,
+        "Mark any question that needs a change, then approve or disapprove.",
+        ...(p.note_to_reviewers ? ["", `Note from the Manager: ${p.note_to_reviewers}`] : []),
+      ].join("\n"),
+      link: portalLink(`/papers/${paperId}`),
+    });
+  }
+}
