@@ -7,7 +7,7 @@ One web address for all the school systems, on the school's letterhead, with a d
 | **manager** | Everything: fee collection, trip and shop profit/loss, staff tour money, leave waiting for approval, who is on leave, and full access (admin) inside the office and leave apps. Uploads question papers and sees every teacher's review. Makes the staff logins. |
 | **admin** | Data entry everywhere – excursion payments and rosters, trip details and expenses, shop sales/stock/costs, staff tours, leave entries, payslip uploads – but **no totals, dashboards or profit figures**. Views and prints question papers. |
 | **staff** | Apply for leave and see their own leave balance (the leave app asks for their own leave login). |
-| **a teacher's own login** (made by the Manager on *Staff logins*) | Everything *staff* gets, plus the **question papers sent to them for review**. |
+| **a teacher's own leave login** (the same username and password as the leave system) | Their leave left, requests waiting, payslips, and the **question papers sent to them for review**. Leave and payslip pages open without signing in again. |
 
 For the office and leave systems the portal doesn't copy any data: buttons open the real apps, already signed in with
 the right role, and the Manager's figures are read live from each app. **Question papers live in the portal itself**
@@ -15,8 +15,8 @@ the right role, and the Manager's figures are read live from each app. **Questio
 
 ## Question papers
 
-1. **Manager → Upload a paper**: paste what Claude wrote (or upload its Word file). Class, subject, exam, year, marks,
-   time and general instructions are read from the paper's heading; each question is read by its number (`1.`, `2)`,
+1. **Manager → Upload a paper**: choose the class, exam (Quarterly / Half Yearly / Annual) and subject, and upload the
+   PDF or Word file. Year, marks, time and general instructions are read from the paper's heading; each question is read by its number (`1.`, `2)`,
    `Q3` …) with *Section / Part* headings and marks like `[2]` or `(2 marks)`.
    - **Upload & send to teachers** sends it straight to the teachers whose subject and class match (Staff page;
      short forms like *Maths* = *Mathematics* are understood).
@@ -70,3 +70,13 @@ DATABASE_URL=postgres://... PORTAL_SECRET=... OFFICE_URL=http://localhost:3001 L
 - `/go/<app>?to=/page` makes a one-minute signed pass for that app and sends the browser to the app's `/portal-login`,
   which checks the pass (signed with `PORTAL_SECRET`, addressed to that app) and signs in as `portal-manager` or `portal-admin`.
 - The Manager page calls each app's `/api/portal/summary` with a one-minute signed pass and shows the figures.
+
+## Staff
+
+The **Staff** page lists everyone with a leave login, filled in automatically from the leave system, with the classes
+and subjects they handle (from their leave applications). Question papers go to teachers by those subjects and classes;
+edit them on the Staff page if needed. Someone who isn't in the leave system can be added there by hand.
+
+## Look
+
+Soft warm stone background with the letterhead's maroon and gold, the same on every device (no dark mode).

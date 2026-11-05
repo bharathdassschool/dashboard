@@ -15,7 +15,7 @@ export type Reviewer = {
   saved_at: string | null; submitted_at: string | null;
 };
 export type QuestionReview = { question_id: number; staff_id: number; verdict: "ok" | "change"; comment: string };
-export type StaffAccount = { id: number; name: string; username: string; classes: string; subjects: string; active: boolean };
+export type StaffAccount = { id: number; name: string; username: string; classes: string; subjects: string; active: boolean; designation: string; from_leave: boolean };
 
 export const DECISION_LABEL: Record<Exclude<Decision, "">, string> = {
   approved: "Approved",
@@ -33,7 +33,7 @@ export const OUTCOME_LABEL: Record<Exclude<Paper["outcome"], "">, string> = {
 };
 
 export const CLASSES = ["LKG", "UKG", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
-export const EXAMS = ["Quarterly", "Half yearly", "Annual", "Unit test", "Revision test", "Board examination (model)"];
+export const EXAMS = ["Quarterly", "Half Yearly", "Annual"];
 
 const PAPER_COLS = `p.id, p.title, p.class_code, p.subject, p.exam, p.academic_year, p.max_marks, p.duration, p.instructions,
   p.note_to_reviewers, p.version, p.previous_id, p.status, p.outcome, p.file_name, p.file_type, (p.file_data IS NOT NULL) AS has_file,
@@ -105,7 +105,7 @@ export async function countToReview(staffId: number) {
 }
 
 export function getStaffAccounts(opts: { activeOnly?: boolean } = {}) {
-  return q<StaffAccount>(`SELECT id, name, username, classes, subjects, active FROM staff_accounts ${opts.activeOnly ? "WHERE active" : ""} ORDER BY active DESC, lower(name)`);
+  return q<StaffAccount>(`SELECT id, name, username, classes, subjects, active, designation, (leave_user_id IS NOT NULL) AS from_leave FROM staff_accounts ${opts.activeOnly ? "WHERE active" : ""} ORDER BY active DESC, lower(name)`);
 }
 
 /** Splits "VIII A, IX; Science / Maths" style lists into lowercase tokens for matching. */
@@ -145,6 +145,18 @@ export function matchesPaper(s: Pick<StaffAccount, "classes" | "subjects">, p: P
 
 export { currentAcademicYear, detectDetails, parseQuestions, type DetectedDetails, type ParsedQuestion } from "./parse";
 
+/** Text of a PDF (one made by Claude, or any PDF with real text – not a scan), or "" when it can't be read. */
+export async function pdfText(buf: Buffer) {
+  try {
+    const { extractText, getDocumentProxy } = await import("unpdf");
+    const pdf = await getDocumentProxy(new Uint8Array(buf));
+    const { text } = await extractText(pdf, { mergePages: false });
+    return (Array.isArray(text) ? text : [text]).join("\n");
+  } catch {
+    return "";
+  }
+}
+
 /** Text of an uploaded Word file (.docx), or "" when it can't be read. */
 export async function docxText(buf: Buffer) {
   try {
@@ -169,4 +181,15 @@ export async function paperCounts() {
      FROM qp_papers`,
   );
   return r ?? { drafts: 0, in_review: 0, waiting: 0, final: 0, flagged: 0, ready: 0 };
+}
+
+/** Subjects teachers handle (from the Staff page), to suggest when uploading. */
+export async function knownSubjects() {
+  const rows = await q<{ subjects: string }>("SELECT subjects FROM staff_accounts WHERE active AND subjects <> ''");
+  const set = new Map<string, string>();
+  for (const r of rows) for (const t of r.subjects.split(/[,;/\n]+/)) {
+    const v = t.trim();
+    if (v && !set.has(v.toLowerCase())) set.set(v.toLowerCase(), v);
+  }
+  return [...set.values()].sort((a, b) => a.localeCompare(b));
 }

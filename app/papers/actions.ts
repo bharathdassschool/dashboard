@@ -6,8 +6,9 @@ import { action } from "@/lib/action";
 import { requireActor } from "@/lib/auth";
 import { q, q1, tx } from "@/lib/db";
 import { id, ids, str } from "@/lib/forms";
+import { syncStaffFromLeave } from "@/lib/staffSync";
 import {
-  currentAcademicYear, detectDetails, docxText, getPaper, getQuestions, getStaffAccounts, matchesPaper, parseQuestions, type Decision, type Reason,
+  currentAcademicYear, detectDetails, docxText, pdfText, getPaper, getQuestions, getStaffAccounts, matchesPaper, parseQuestions, type Decision, type Reason,
 } from "@/lib/papers";
 
 const MAX_FILE = 4 * 1024 * 1024;
@@ -48,6 +49,7 @@ async function paperText(fd: FormData, file: Awaited<ReturnType<typeof readFile>
   if (pasted.trim()) return pasted;
   if (!file) return "";
   if (/\.docx$/i.test(file.name)) return docxText(file.data);
+  if (/\.pdf$/i.test(file.name)) return pdfText(file.data);
   if (/\.(txt|md)$/i.test(file.name)) return file.data.toString("utf8").slice(0, TEXT_MAX);
   return "";
 }
@@ -90,6 +92,7 @@ export const createPaper = action(async (fd) => {
   const d = details(fd, text);
   const sendNow = fd.get("intent") === "send";
   // "Upload & send": straight to the teachers whose classes and subjects match – no extra step.
+  if (sendNow) await syncStaffFromLeave();
   const reviewers = sendNow ? (await getStaffAccounts({ activeOnly: true })).filter((s) => matchesPaper(s, d)).map((s) => s.id) : [];
   const paperId = await tx(async (c) => {
     const r = await c.query<{ id: number }>(

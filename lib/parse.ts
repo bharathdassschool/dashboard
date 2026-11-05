@@ -82,7 +82,7 @@ export type DetectedDetails = {
 const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
 const EXAM_WORDS: [RegExp, string][] = [
   [/\bquarterly\b/i, "Quarterly"],
-  [/\bhalf[\s-]*yearly\b/i, "Half yearly"],
+  [/\bhalf[\s-]*yearly\b/i, "Half Yearly"],
   [/\b(annual|final)\s+exam/i, "Annual"],
   [/\bannual\b/i, "Annual"],
   [/\bunit\s*test\b/i, "Unit test"],

@@ -1,41 +1,24 @@
 @import "tailwindcss";
 
 :root {
-  /* Taken from the school letterhead: maroon crest and heading, gold rule. */
-  --bg: #faf8f4;
-  --surface: #ffffff;
-  --border: #ebe5da;
-  --text: #22201c;
-  --muted: #6f685d;
+  /* Letterhead colours on a soft warm stone background: not too bright, not too dark, not colourful.
+     The same on every device (no automatic dark mode). */
+  --bg: #e8e4dc;
+  --surface: #f5f2ec;
+  --border: #d8d1c5;
+  --text: #2a2622;
+  --muted: #6b6459;
   --primary: #7a1d21;
   --primary-fg: #ffffff;
-  --gold: #b08a3e;
-  --good: #2f7a3a;
-  --bad: #a32020;
-  --warn: #9a6212;
-  --good-bg: #e6f2e6;
-  --warn-bg: #fbf0dc;
-  --bad-bg: #f8e3e1;
-  --muted-bg: #f3efe7;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #15120f;
-    --surface: #1d1915;
-    --border: #332c24;
-    --text: #ece6dc;
-    --muted: #a59b8c;
-    --primary: #e0898b;
-    --primary-fg: #1a0b0c;
-    --gold: #cfa95a;
-    --good: #7fcf8a;
-    --bad: #f08a80;
-    --warn: #e7b55c;
-    --good-bg: #1b2e1e;
-    --warn-bg: #33270f;
-    --bad-bg: #3a1a18;
-    --muted-bg: #26211b;
-  }
+  --gold: #a8843a;
+  --good: #2f6f38;
+  --bad: #9e2420;
+  --warn: #8f5c12;
+  --good-bg: #dfe8da;
+  --warn-bg: #f0e4cb;
+  --bad-bg: #eed8d3;
+  --muted-bg: #ebe6dd;
+  color-scheme: light;
 }
 
 @theme inline {

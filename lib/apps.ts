@@ -19,11 +19,15 @@ export function appUrl(k: AppKey) {
   return u && /^https?:\/\//.test(u) ? u : null;
 }
 
-/** A one-minute signed pass for one app: "login" opens it signed in, "summary" reads the Manager's figures. */
-export async function appToken(k: AppKey, role: "manager" | "admin", purpose: "login" | "summary") {
+/**
+ * A one-minute signed pass for one app. "login" opens it as Manager/Admin, "summary" reads the Manager's figures;
+ * for the leave app also "verify" (check a teacher's password), "staff-login" / "staff-data" (that teacher's own
+ * pages and figures, by uid) and "staff-list" (who teaches what).
+ */
+export async function appToken(k: AppKey, role: "manager" | "admin" | "staff", purpose: string, extra: Record<string, unknown> = {}) {
   const key = portalSecret();
   if (!key) throw new Error("PORTAL_SECRET is not set.");
-  return new SignJWT({ role, purpose })
+  return new SignJWT({ role, purpose, ...extra })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuer("bd-portal")
     .setAudience(k)
@@ -50,5 +54,26 @@ export async function fetchSummary<T>(k: AppKey): Promise<Fetched<T>> {
     return { ok: true, data: (await res.json()) as T };
   } catch (e) {
     return { ok: false, error: e instanceof Error && e.name === "TimeoutError" ? "The app took too long to answer." : "Couldn't reach the app." };
+  }
+}
+
+/** A call to the leave app on behalf of the portal (JSON in and out). Returns null when it can't be reached. */
+export async function leaveCall<T>(path: string, purpose: string, opts: { body?: unknown; uid?: number } = {}): Promise<T | null> {
+  const base = appUrl("leave");
+  if (!base) return null;
+  try {
+    const res = await fetch(`${base}${path}`, {
+      method: opts.body ? "POST" : "GET",
+      headers: {
+        Authorization: `Bearer ${await appToken("leave", "staff", purpose, opts.uid ? { uid: opts.uid } : {})}`,
+        ...(opts.body ? { "Content-Type": "application/json" } : {}),
+      },
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+    return res.ok ? ((await res.json()) as T) : null;
+  } catch {
+    return null;
   }
 }

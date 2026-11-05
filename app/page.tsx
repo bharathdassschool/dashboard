@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Shell } from "@/components/Shell";
 import { Card, PageHeader, Stat, Stats } from "@/components/ui";
-import { appUrl, fetchSummary, type AppKey, type Fetched } from "@/lib/apps";
+import { appUrl, fetchSummary, leaveCall, type AppKey, type Fetched } from "@/lib/apps";
 import { requireSession, type Session } from "@/lib/auth";
 import { databaseUrl } from "@/lib/db";
 import { countToReview, paperCounts } from "@/lib/papers";
@@ -42,19 +42,67 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
 
 /* ---------------- Staff ---------------- */
 
-function StaffHome({ session, toReview }: { session: Session; toReview: number }) {
-  const rows: Row[] = [
-    ...(session.staffId ? [{ href: "/papers", label: "Question papers to review", note: toReview ? <span className="badge badge-warn">{toReview} waiting</span> : "none waiting" }] : []),
-    { href: go("leave", "/leave/apply"), label: "Apply for leave", external: true },
-    { href: go("leave", "/leave/my"), label: "My leave balance", external: true },
-  ];
+type MyLeave = {
+  name: string;
+  balance: { sick: number; casual: number; paid: number };
+  entitled: { sick: number; casual: number; paid: number };
+  status: string;
+  pendingCount: number;
+  requests: { id: number; type: string; from: string; to: string; days: number; status: string }[];
+  payslips: { id: number; month: string }[];
+};
+
+const day = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+const monthName = (m: string) => new Date(m + "-01T00:00:00").toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+
+async function StaffHome({ session, toReview }: { session: Session; toReview: number }) {
+  // A teacher with their own login sees their own figures; the shared "staff" login can only open the leave app.
+  const me = session.leaveUserId ? await leaveCall<MyLeave>("/api/portal/me", "staff-data", { uid: session.leaveUserId }) : null;
+  const left = (k: keyof MyLeave["balance"]) => (me ? me.balance[k] : 0);
   return (
     <>
       <PageHeader title={session.staffId ? `Welcome, ${session.name}` : "Welcome"} />
-      <Card><Rows rows={rows} /></Card>
-      <p className="mt-3 text-xs text-muted">
-        Leave opens in the leave app – sign in there with your own staff login.{!appUrl("leave") && " (Not connected yet.)"}
-      </p>
+      {me && (
+        <Card className="mb-5" title="Leave left this year">
+          <Stats>
+            <Stat label="Sick" value={left("sick")} hint={`of ${me.entitled.sick}`} tone={left("sick") < 0 ? "bad" : undefined} />
+            <Stat label="Casual" value={left("casual")} hint={`of ${me.entitled.casual}`} tone={left("casual") < 0 ? "bad" : undefined} />
+            <Stat label="Paid" value={left("paid")} hint={`of ${me.entitled.paid}`} tone={left("paid") < 0 ? "bad" : undefined} />
+            <Stat label="Waiting for approval" value={me.pendingCount} tone={me.pendingCount ? "warn" : undefined} />
+          </Stats>
+        </Card>
+      )}
+      <div className="grid gap-5 md:grid-cols-2">
+        <Card title="Leave">
+          <Rows rows={[
+            { href: go("leave", "/leave/apply"), label: "Apply for leave", external: true },
+            { href: go("leave", "/leave/my"), label: me ? "My leave & history" : "My leave balance", external: true },
+            ...(me?.requests ?? []).slice(0, 3).map((r) => ({
+              href: go("leave", "/leave/my"), external: true,
+              label: `${r.type} · ${day(r.from)}${r.to !== r.from ? ` – ${day(r.to)}` : ""}`,
+              note: <span className={`badge ${r.status === "Approved" ? "badge-good" : r.status === "Rejected" ? "badge-bad" : "badge-warn"}`}>{r.status}</span>,
+            })),
+          ]} />
+        </Card>
+        {session.staffId && (
+          <Card title="Question papers">
+            <Rows rows={[{ href: "/papers", label: "Papers to review", note: toReview ? <span className="badge badge-warn">{toReview} waiting</span> : "none waiting" }]} />
+          </Card>
+        )}
+        {me && (
+          <Card title="Payslips">
+            {me.payslips.length === 0 ? <p className="text-sm text-muted">No payslips yet.</p> : (
+              <Rows rows={me.payslips.map((p) => ({ href: go("leave", `/api/payslips/${p.id}`), label: monthName(p.month), note: "View →", external: true }))} />
+            )}
+          </Card>
+        )}
+      </div>
+      {!session.leaveUserId && (
+        <p className="mt-4 text-sm text-muted">
+          Sign in with <strong>your own leave login</strong> to see your balance, payslips and question papers here.
+          {!appUrl("leave") && " (The leave app isn't connected yet.)"}
+        </p>
+      )}
     </>
   );
 }
@@ -135,7 +183,7 @@ async function ManagerHome() {
           <Stat label="Fees collected" value={o ? money(o.excursion.collected) : "—"} hint={o ? `${money(o.excursion.outstanding)} outstanding` : undefined} />
           <Stat label="Trip net profit" value={o ? money(o.trips.net) : "—"} tone={o && o.trips.net < 0 ? "bad" : undefined} />
           <Stat label="Shops · this month" value={o ? money(shopNet) : "—"} tone={shopNet < 0 ? "bad" : undefined} hint="net profit" />
-          <Stat label="On leave today" value={l ? l.onLeaveToday.length : "—"} hint={l ? `of ${l.staff} staff` : undefined} />
+          <Stat label="Staff on leave today" value={l ? l.onLeaveToday.length : "—"} hint={l ? `${l.staff} staff in all` : undefined} />
         </Stats>
         <Problem r={office} />
         <Problem r={leave} />
@@ -164,6 +212,7 @@ async function ManagerHome() {
             { href: go("leave", "/leave"), label: "Leave overview", external: true },
             { href: go("leave", "/leave/year-end"), label: "Year-end payout", external: true },
             { href: go("leave", "/payslips"), label: "Payslips", external: true },
+            { href: go("leave", "/leave/rules"), label: "Leave rules", external: true },
           ]} />
         </Card>
         <Card title="Question papers">
@@ -174,10 +223,9 @@ async function ManagerHome() {
         </Card>
         <Card title="Settings">
           <Rows rows={[
-            { href: "/staff", label: "Staff logins" },
-            { href: go("office", "/admin/users"), label: "Office users", external: true },
-            { href: go("leave", "/admin/users"), label: "Leave users", external: true },
-            { href: go("leave", "/leave/rules"), label: "Leave rules", external: true },
+            { href: "/staff", label: "Staff & subjects", note: "who reviews which papers" },
+            { href: go("leave", "/admin/users"), label: "Staff logins & passwords", note: "leave system", external: true },
+            { href: go("office", "/admin/users"), label: "Office users", note: "who can enter fees & shops", external: true },
           ]} />
         </Card>
       </div>

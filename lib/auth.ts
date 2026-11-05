@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { createHash, timingSafeEqual } from "node:crypto";
+import { leaveCall } from "./apps";
 import { databaseUrl, q1 } from "./db";
 
 export type Role = "manager" | "admin" | "staff";
@@ -14,7 +15,7 @@ export const ROLE_LABEL: Record<Role, string> = { manager: "Manager", admin: "Ad
  * Who is signed in. The three shared logins (manager / admin / staff) have no staffId. A personal staff login,
  * made by the Manager on the Staff page, has role "staff" and its own staffId – it receives question papers to review.
  */
-export type Session = { role: Role; staffId: number | null; name: string };
+export type Session = { role: Role; staffId: number | null; name: string; leaveUserId: number | null };
 
 const COOKIE = "bd_portal";
 const MAX_AGE = 60 * 60 * 12; // 12 hours
@@ -41,15 +42,31 @@ export async function checkLogin(username: string, password: string): Promise<Se
   const role = ROLES.find((r) => r === u);
   if (role) {
     // Constant-time comparison.
-    return timingSafeEqual(digest(password), digest(passwordFor(role))) ? { role, staffId: null, name: ROLE_LABEL[role] } : null;
+    return timingSafeEqual(digest(password), digest(passwordFor(role))) ? { role, staffId: null, name: ROLE_LABEL[role], leaveUserId: null } : null;
   }
   if (!databaseUrl()) return null;
+  // 1. Someone the Manager added on the portal by hand (not in the leave system).
   const row = await q1<{ id: number; name: string; password_hash: string; active: boolean }>(
-    "SELECT id, name, password_hash, active FROM staff_accounts WHERE lower(username) = $1",
+    "SELECT id, name, password_hash, active FROM staff_accounts WHERE lower(username) = $1 AND leave_user_id IS NULL AND password_hash <> ''",
     [u],
   );
-  const ok = await bcrypt.compare(password, row?.password_hash ?? DUMMY_HASH);
-  return row && row.active && ok ? { role: "staff", staffId: row.id, name: row.name } : null;
+  if (row) {
+    const ok = await bcrypt.compare(password, row.password_hash);
+    return row.active && ok ? { role: "staff", staffId: row.id, name: row.name, leaveUserId: null } : null;
+  }
+  // 2. Everyone else: their own staff leave login (checked by the leave app – one login for both).
+  const v = await leaveCall<{ ok: boolean; userId: number; name: string; username: string }>("/api/portal/verify", "verify", { body: { username: u, password } });
+  if (!v?.ok) {
+    await bcrypt.compare(password, DUMMY_HASH);
+    return null;
+  }
+  const acct = await q1<{ id: number; name: string; active: boolean }>(
+    `INSERT INTO staff_accounts (name, username, password_hash, leave_user_id) VALUES ($1, $2, '', $3)
+     ON CONFLICT (leave_user_id) DO UPDATE SET name = EXCLUDED.name, username = EXCLUDED.username
+     RETURNING id, name, active`,
+    [v.name, v.username, v.userId],
+  ).catch(() => undefined);
+  return acct?.active ? { role: "staff", staffId: acct.id, name: acct.name, leaveUserId: v.userId } : null;
 }
 
 export function hashPassword(pw: string) {
@@ -78,10 +95,10 @@ export async function currentSession(): Promise<Session | null> {
     return null; // expired or tampered: signed out
   }
   if (!ROLES.includes(role as Role)) return null;
-  if (typeof sid !== "number") return { role: role as Role, staffId: null, name: ROLE_LABEL[role as Role] };
+  if (typeof sid !== "number") return { role: role as Role, staffId: null, name: ROLE_LABEL[role as Role], leaveUserId: null };
   // A personal staff login stops working as soon as the Manager switches it off.
-  const row = await q1<{ name: string }>("SELECT name FROM staff_accounts WHERE id = $1 AND active", [sid]);
-  return row ? { role: "staff", staffId: sid, name: row.name } : null;
+  const row = await q1<{ name: string; leave_user_id: number | null }>("SELECT name, leave_user_id FROM staff_accounts WHERE id = $1 AND active", [sid]);
+  return row ? { role: "staff", staffId: sid, name: row.name, leaveUserId: row.leave_user_id } : null;
 }
 
 export async function currentRole(): Promise<Role | null> {

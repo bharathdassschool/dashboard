@@ -2,11 +2,13 @@ import Link from "next/link";
 import { ActionForm, ButtonForm, Submit } from "@/components/forms";
 import { PaperFields } from "@/components/PaperFields";
 import { Card, Empty, Field } from "@/components/ui";
+import { syncStaffFromLeave } from "@/lib/staffSync";
 import { getStaffAccounts, matchesPaper, type Paper, type Question } from "@/lib/papers";
 import { deletePaper, deleteQuestion, moveQuestion, replaceFile, rereadQuestions, savePaperDetails, saveQuestion, sendForReview } from "../actions";
 
 /** Manager, before sending: check every question, fix details, choose reviewers. */
 export async function ManagerDraft({ paper, questions, previousReviewers }: { paper: Paper; questions: Question[]; previousReviewers: number[] }) {
+  await syncStaffFromLeave();
   const staff = await getStaffAccounts({ activeOnly: true });
   const pre = new Set(previousReviewers.length ? previousReviewers : staff.filter((s) => matchesPaper(s, paper)).map((s) => s.id));
   return (
@@ -66,14 +68,14 @@ export async function ManagerDraft({ paper, questions, previousReviewers }: { pa
             <p className="text-sm text-muted">
               {previousReviewers.length ? "Ticked: the reviewers of the previous version." : `Ticked: teachers whose subjects include "${paper.subject}" for class ${paper.class_code}.`} Change as needed.
             </p>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {staff.map((s) => (
-                <label key={s.id} className="flex items-start gap-2 text-sm">
-                  <input type="checkbox" name="reviewer" value={s.id} defaultChecked={pre.has(s.id)} className="mt-1" />
-                  <span><span className="font-medium">{s.name}</span><br /><span className="text-muted">{s.subjects || "no subjects"} · {s.classes || "any class"}</span></span>
-                </label>
-              ))}
-            </div>
+            {/* Matching teachers first; everyone else folded away (95 staff would be a long list). */}
+            <ReviewerBoxes staff={staff.filter((s) => pre.has(s.id))} pre={pre} />
+            {staff.some((s) => !pre.has(s.id)) && (
+              <details>
+                <summary className="btn-link cursor-pointer">Other staff ({staff.filter((s) => !pre.has(s.id)).length})</summary>
+                <div className="mt-3"><ReviewerBoxes staff={staff.filter((s) => !pre.has(s.id))} pre={pre} /></div>
+              </details>
+            )}
             <div><Submit>Send to reviewers</Submit></div>
           </ActionForm>
         )}
@@ -93,6 +95,20 @@ export async function ManagerDraft({ paper, questions, previousReviewers }: { pa
         </ActionForm>
         <div className="mt-6"><ButtonForm action={deletePaper} fields={{ id: paper.id }} label="Delete this draft" confirm="Delete this paper and its questions?" /></div>
       </details>
+    </div>
+  );
+}
+
+function ReviewerBoxes({ staff, pre }: { staff: { id: number; name: string; subjects: string; classes: string }[]; pre: Set<number> }) {
+  if (!staff.length) return <p className="text-sm text-muted">No teacher matches this class and subject yet.</p>;
+  return (
+    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      {staff.map((s) => (
+        <label key={s.id} className="flex items-start gap-2 text-sm">
+          <input type="checkbox" name="reviewer" value={s.id} defaultChecked={pre.has(s.id)} className="mt-1" />
+          <span><span className="font-medium">{s.name}</span><br /><span className="text-muted">{s.subjects || "no subjects"} · {s.classes || "any class"}</span></span>
+        </label>
+      ))}
     </div>
   );
 }
